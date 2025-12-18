@@ -159,6 +159,13 @@ npm run vsce:package
 npm run vsce:publish
 ```
 
+### Packaging for VSCode
+
+```bash
+npm install -g @vscode/vsce
+vsce package
+```
+
 ## Contributing
 
 Contributions are welcome! Please:
