@@ -1,1 +1,1 @@
-This are example text for testing.
+This are example text for testing. Please correct these.
