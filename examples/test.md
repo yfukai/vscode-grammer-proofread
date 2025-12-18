@@ -1,0 +1,1 @@
+This are example text for testing.

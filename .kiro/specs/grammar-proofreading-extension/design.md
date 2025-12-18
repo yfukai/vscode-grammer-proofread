@@ -55,6 +55,7 @@ The extension follows a layered architecture pattern:
 ### Configuration Management
 - **ConfigurationProvider**: Manages extension settings and API configuration
 - **PromptManager**: Handles predefined and custom correction prompts
+- **SettingsProvider**: Manages VSCode settings integration for prompt configuration
 
 ## Data Models
 
@@ -112,6 +113,27 @@ interface ExtensionConfiguration {
   maxTokens: number;
   temperature: number;
   customPrompts: CustomPrompt[];
+  defaultPrompts: DefaultPromptConfiguration;
+}
+```
+
+### DefaultPromptConfiguration
+```typescript
+interface DefaultPromptConfiguration {
+  grammar: string;
+  style: string;
+  clarity: string;
+  tone: string;
+}
+```
+
+### CustomPrompt
+```typescript
+interface CustomPrompt {
+  name: string;
+  prompt: string;
+  correctionType: string;
+  description?: string;
 }
 ```
 
@@ -191,6 +213,48 @@ Property 18: Prompt customization is supported
 *For any* prompt configuration operation, the extension should allow users to customize existing prompts or add new correction prompts
 **Validates: Requirements 5.5**
 
+Property 19: Settings modifications persist correctly
+*For any* default prompt modification in VSCode settings, the extension should persist the updated prompt value and retrieve it correctly
+**Validates: Requirements 6.2**
+
+Property 20: Configured prompts are used when available
+*For any* correction button click with a configured prompt, the extension should use the configured prompt from settings instead of the built-in default
+**Validates: Requirements 6.3**
+
+Property 21: Fallback to default prompts works
+*For any* correction type without a custom configuration, the extension should use the built-in default prompt for that correction type
+**Validates: Requirements 6.4**
+
+Property 22: Prompt reset restores defaults
+*For any* prompt configuration reset operation, the extension should restore the original built-in default prompt for that correction type
+**Validates: Requirements 6.5**
+
+Property 23: Invalid prompts are validated and rejected
+*For any* invalid prompt content provided in settings, the extension should validate the prompt and display appropriate error messages
+**Validates: Requirements 6.7**
+
+## VSCode Settings Integration
+
+The extension integrates with VSCode's native settings system to provide configurable default prompts:
+
+**Settings Schema Definition:**
+- Extension contributes settings through `package.json` configuration
+- Each default prompt type (grammar, style, clarity, tone) has a dedicated setting
+- Settings include descriptions and default values for user guidance
+- Validation rules ensure prompt content meets minimum requirements
+
+**Settings UI Features:**
+- Native VSCode settings interface for prompt configuration
+- Clear descriptions explaining each correction type's purpose
+- Default value restoration through settings reset functionality
+- Real-time validation with error messaging for invalid inputs
+
+**Configuration Persistence:**
+- Settings are stored in VSCode's configuration system
+- Changes are automatically persisted across sessions
+- Workspace-specific overrides supported for team configurations
+- Migration support for existing custom prompt configurations
+
 ## Error Handling
 
 The extension implements comprehensive error handling across all layers:
@@ -240,8 +304,9 @@ The extension uses fast-check for property-based testing to verify correctness p
 1. **Text Processing Properties**: Verify text capture, replacement, and preservation behaviors
 2. **API Integration Properties**: Validate request construction and response handling
 3. **Configuration Properties**: Test settings validation and connection management
-4. **Error Handling Properties**: Ensure consistent error behavior across failure scenarios
-5. **UI Interaction Properties**: Verify button behavior and user feedback mechanisms
+4. **Prompt Configuration Properties**: Verify default prompt customization and persistence
+5. **Error Handling Properties**: Ensure consistent error behavior across failure scenarios
+6. **UI Interaction Properties**: Verify button behavior and user feedback mechanisms
 
 ### Integration Testing
 - VSCode extension host testing for UI integration

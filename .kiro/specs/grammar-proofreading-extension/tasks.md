@@ -130,3 +130,66 @@
 
 - [x] 12. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 13. Implement VSCode settings integration for configurable prompts
+  - Update package.json to define settings schema for default prompts
+  - Add settings contributions for grammar, style, clarity, and tone prompts
+  - Include setting descriptions and default values for each prompt type
+  - _Requirements: 6.1, 6.6_
+
+- [x] 13.1 Write unit tests for settings schema
+  - Test settings schema definition and validation
+  - Test default value configuration
+  - _Requirements: 6.1, 6.6_
+
+- [x] 14. Update data models for prompt configuration
+  - Add DefaultPromptConfiguration interface to models
+  - Update ExtensionConfiguration to include defaultPrompts field
+  - Modify CustomPrompt interface to include description field
+  - _Requirements: 6.2_
+
+- [x] 15. Enhance ConfigurationProvider for prompt settings
+  - Add methods to read default prompt configurations from VSCode settings
+  - Implement prompt validation logic for settings input
+  - Add support for prompt reset functionality
+  - _Requirements: 6.2, 6.5, 6.7_
+
+- [x] 15.1 Write property test for prompt persistence
+  - **Property 19: Settings modifications persist correctly**
+  - **Validates: Requirements 6.2**
+
+- [x] 15.2 Write property test for prompt validation
+  - **Property 23: Invalid prompts are validated and rejected**
+  - **Validates: Requirements 6.7**
+
+- [x] 16. Update PromptManager for settings integration
+  - Modify getPrompt method to check settings before using defaults
+  - Add fallback logic to use built-in defaults when settings are empty
+  - Implement prompt reset functionality to restore original defaults
+  - _Requirements: 6.3, 6.4, 6.5_
+
+- [x] 16.1 Write property test for prompt selection logic
+  - **Property 20: Configured prompts are used when available**
+  - **Property 21: Fallback to default prompts works**
+  - **Validates: Requirements 6.3, 6.4**
+
+- [x] 16.2 Write property test for prompt reset functionality
+  - **Property 22: Prompt reset restores defaults**
+  - **Validates: Requirements 6.5**
+
+- [x] 17. Update CorrectionService to use configurable prompts
+  - Modify correction workflow to retrieve prompts from updated PromptManager
+  - Ensure all correction types use configured prompts when available
+  - _Requirements: 6.3, 6.4_
+
+- [x] 18. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 19. Update extension documentation for prompt configuration
+  - Add documentation for new prompt configuration settings
+  - Include examples of customizing default prompts
+  - Document prompt reset and validation features
+  - _Requirements: 6.1, 6.6_
+
+- [x] 20. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

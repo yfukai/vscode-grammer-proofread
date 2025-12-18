@@ -57,8 +57,9 @@ export class PromptManager {
             }
         }
 
-        // Return default prompt for the correction type
-        return this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
+        // Get configured prompt from settings first, fallback to built-in default
+        const defaultPrompts = this.configProvider.getDefaultPromptConfiguration();
+        return defaultPrompts[correctionType] || this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
     }
 
     getCustomPrompt(name: string): CustomPrompt | undefined {
@@ -146,5 +147,22 @@ export class PromptManager {
             isValid: errors.length === 0,
             errors
         };
+    }
+
+    async updateDefaultPrompt(correctionType: CorrectionType, prompt: string): Promise<{ success: boolean; error?: string }> {
+        return await this.configProvider.updateDefaultPrompt(correctionType, prompt);
+    }
+
+    async resetDefaultPrompt(correctionType: CorrectionType): Promise<{ success: boolean; error?: string }> {
+        return await this.configProvider.resetDefaultPrompt(correctionType);
+    }
+
+    getConfiguredDefaultPrompt(correctionType: CorrectionType): string {
+        const defaultPrompts = this.configProvider.getDefaultPromptConfiguration();
+        return defaultPrompts[correctionType] || this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
+    }
+
+    getBuiltInDefaultPrompt(correctionType: CorrectionType): string {
+        return this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
     }
 }

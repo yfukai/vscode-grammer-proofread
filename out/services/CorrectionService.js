@@ -25,15 +25,16 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CorrectionService = void 0;
 const vscode = __importStar(require("vscode"));
-const CorrectionType_1 = require("../models/CorrectionType");
 const ConfigurationProvider_1 = require("./ConfigurationProvider");
 const TextProcessor_1 = require("./TextProcessor");
 const LLMApiClient_1 = require("./LLMApiClient");
+const PromptManager_1 = require("./PromptManager");
 class CorrectionService {
     constructor() {
         this.configProvider = new ConfigurationProvider_1.ConfigurationProvider();
         this.textProcessor = new TextProcessor_1.TextProcessor();
         this.apiClient = new LLMApiClient_1.LLMApiClient();
+        this.promptManager = new PromptManager_1.PromptManager();
     }
     async performCorrection(correctionType, customPrompt) {
         try {
@@ -59,9 +60,10 @@ class CorrectionService {
             }, async (progress) => {
                 progress.report({ increment: 25, message: 'Preparing request...' });
                 // Build correction request
+                const prompt = customPrompt || this.promptManager.getPrompt(correctionType);
                 const correctionRequest = {
                     text: textCapture.text,
-                    prompt: customPrompt || '',
+                    prompt,
                     correctionType,
                     apiEndpoint: config.apiEndpoint,
                     apiKey: config.apiKey
@@ -111,20 +113,13 @@ class CorrectionService {
         }
     }
     getPromptForCorrectionType(correctionType) {
-        switch (correctionType) {
-            case CorrectionType_1.CorrectionType.GRAMMAR:
-                return 'Please correct any grammatical errors in the following text while preserving the original meaning and style.';
-            case CorrectionType_1.CorrectionType.STYLE:
-                return 'Please improve the writing style of the following text to make it more engaging and professional while maintaining the original tone.';
-            case CorrectionType_1.CorrectionType.CLARITY:
-                return 'Please improve the clarity and readability of the following text by simplifying complex sentences and removing ambiguity.';
-            case CorrectionType_1.CorrectionType.TONE:
-                return 'Please adjust the tone of the following text to be more appropriate and consistent throughout.';
-            case CorrectionType_1.CorrectionType.CUSTOM:
-                return '';
-            default:
-                return 'Please improve the following text.';
-        }
+        return this.promptManager.getPrompt(correctionType);
+    }
+    async updateDefaultPrompt(correctionType, prompt) {
+        return await this.promptManager.updateDefaultPrompt(correctionType, prompt);
+    }
+    async resetDefaultPrompt(correctionType) {
+        return await this.promptManager.resetDefaultPrompt(correctionType);
     }
 }
 exports.CorrectionService = CorrectionService;

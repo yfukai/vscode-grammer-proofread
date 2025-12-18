@@ -128,6 +128,30 @@
           "type": "number",
           "default": 0.3,
           "description": "Temperature for API requests"
+        },
+        "grammarProofreading.defaultPrompts.grammar": {
+          "type": "string",
+          "default": "Please correct any grammatical errors in the following text. Focus on:\n- Subject-verb agreement\n- Verb tenses and consistency\n- Punctuation and capitalization\n- Sentence structure\nPreserve the original meaning and style.",
+          "description": "Default prompt for grammar corrections. Customize this to match your preferred grammar correction style.",
+          "editPresentation": "multilineText"
+        },
+        "grammarProofreading.defaultPrompts.style": {
+          "type": "string",
+          "default": "Please improve the writing style of the following text. Focus on:\n- Word choice and vocabulary\n- Sentence variety and flow\n- Clarity and conciseness\n- Professional tone\nMaintain the author's voice while enhancing readability.",
+          "description": "Default prompt for style corrections. Customize this to match your preferred writing style improvements.",
+          "editPresentation": "multilineText"
+        },
+        "grammarProofreading.defaultPrompts.clarity": {
+          "type": "string",
+          "default": "Please improve the clarity and readability of the following text. Focus on:\n- Simplifying complex sentences\n- Removing ambiguity\n- Improving logical flow\n- Making concepts more understandable\nEnsure the message is clear and accessible.",
+          "description": "Default prompt for clarity corrections. Customize this to match your preferred clarity improvement approach.",
+          "editPresentation": "multilineText"
+        },
+        "grammarProofreading.defaultPrompts.tone": {
+          "type": "string",
+          "default": "Please adjust the tone of the following text to be more appropriate. Focus on:\n- Consistency in formality level\n- Appropriate voice for the audience\n- Professional yet engaging language\n- Removing inappropriate or inconsistent tone\nMaintain the core message while improving tone.",
+          "description": "Default prompt for tone corrections. Customize this to match your preferred tone adjustment style.",
+          "editPresentation": "multilineText"
         }
       }
     }

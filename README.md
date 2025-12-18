@@ -80,6 +80,64 @@ Before using the extension, you must configure your API settings:
 - **Default**: `0.3`
 - **Description**: Temperature for API requests (0.0 to 2.0)
 
+### Configurable Default Prompts
+
+You can customize the default prompts used for each correction type to match your writing style and preferences:
+
+#### Grammar Prompt
+- **Setting**: `grammarProofreading.defaultPrompts.grammar`
+- **Description**: Customize the prompt used for grammar corrections
+- **Default**: Focuses on subject-verb agreement, verb tenses, punctuation, and sentence structure
+
+#### Style Prompt
+- **Setting**: `grammarProofreading.defaultPrompts.style`
+- **Description**: Customize the prompt used for style improvements
+- **Default**: Focuses on word choice, sentence variety, clarity, and professional tone
+
+#### Clarity Prompt
+- **Setting**: `grammarProofreading.defaultPrompts.clarity`
+- **Description**: Customize the prompt used for clarity enhancements
+- **Default**: Focuses on simplifying complex sentences and removing ambiguity
+
+#### Tone Prompt
+- **Setting**: `grammarProofreading.defaultPrompts.tone`
+- **Description**: Customize the prompt used for tone adjustments
+- **Default**: Focuses on consistency in formality and appropriate voice
+
+#### Customizing Prompts
+
+To customize a default prompt:
+
+1. Open VSCode Settings (`Ctrl+,` / `Cmd+,`)
+2. Search for "Grammar Proofreading"
+3. Find the prompt setting you want to modify (e.g., `grammarProofreading.defaultPrompts.grammar`)
+4. Click "Edit in settings.json" or use the text area to modify the prompt
+5. Save your changes
+
+**Example Custom Grammar Prompt:**
+```
+Please correct any grammatical errors in the following text with a focus on:
+- British English spelling and grammar rules
+- Formal academic writing style
+- Proper citation formatting
+- Technical terminology accuracy
+Preserve the original meaning and maintain an academic tone.
+```
+
+**Tips for Writing Effective Prompts:**
+- Be specific about what you want corrected
+- Include style preferences (formal/informal, British/American English, etc.)
+- Mention what should be preserved (tone, meaning, technical terms)
+- Use bullet points for clarity
+- Test your prompts with sample text to ensure they work as expected
+
+#### Resetting Prompts
+
+To reset a prompt to its default value:
+1. Go to the prompt setting in VSCode Settings
+2. Click the gear icon next to the setting
+3. Select "Reset Setting" from the dropdown menu
+
 ### Supported APIs
 
 This extension works with any OpenAI-compatible API, including:
@@ -180,6 +238,15 @@ Contributions are welcome! Please:
 MIT License - see LICENSE file for details
 
 ## Release Notes
+
+### 0.0.2
+
+New features:
+- **Configurable Default Prompts**: Customize the default prompts for grammar, style, clarity, and tone corrections through VSCode settings
+- **Prompt Validation**: Built-in validation ensures prompt content meets quality requirements
+- **Prompt Reset Functionality**: Easy reset of customized prompts back to built-in defaults
+- **Enhanced Settings UI**: Multiline text editing for prompts with clear descriptions
+- **Improved Error Handling**: Better validation and error messages for prompt configuration
 
 ### 0.0.1
 

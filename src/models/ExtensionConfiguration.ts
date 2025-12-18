@@ -2,6 +2,15 @@ export interface CustomPrompt {
     name: string;
     prompt: string;
     correctionType: string;
+    description?: string;
+}
+
+export interface DefaultPromptConfiguration {
+    grammar: string;
+    style: string;
+    clarity: string;
+    tone: string;
+    [key: string]: string; // Allow indexing with string keys
 }
 
 export interface ExtensionConfiguration {
@@ -11,4 +20,5 @@ export interface ExtensionConfiguration {
     maxTokens: number;
     temperature: number;
     customPrompts: CustomPrompt[];
+    defaultPrompts: DefaultPromptConfiguration;
 }

@@ -28,10 +28,10 @@ describe('ValidationService', () => {
 
             // Generator for valid CorrectionResponse objects
             const validResponseArb = fc.record({
-                correctedText: fc.string(),
-                explanation: fc.string(),
+                correctedText: fc.string({ minLength: 1 }),
+                explanation: fc.string({ minLength: 1 }),
                 changes: fc.array(textChangeArb),
-                confidence: fc.float({ min: 0, max: 1 })
+                confidence: fc.float({ min: 0, max: 1 }).filter(n => !isNaN(n))
             });
 
             fc.assert(

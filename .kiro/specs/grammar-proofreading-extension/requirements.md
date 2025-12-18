@@ -13,6 +13,9 @@ A VSCode extension that provides grammar correction and proofreading capabilitie
 - **Correction_Response**: Structured JSON response containing corrected text and explanation
 - **JSON_Schema**: Validation schema that defines the expected format of API responses
 - **Configuration_Settings**: User-configurable API endpoint and authentication settings
+- **Default_Prompt**: Built-in prompt template for each correction type that can be customized through settings
+- **Prompt_Configuration**: VSCode settings interface that allows users to modify default correction prompts
+- **Settings_UI**: VSCode's native settings interface where extension configuration options are displayed
 
 ## Requirements
 
@@ -73,3 +76,17 @@ A VSCode extension that provides grammar correction and proofreading capabilitie
 3. WHEN sending requests to the LLM_API, THE Grammar_Extension SHALL combine the Document_Text with the selected prompt
 4. WHEN different correction types are available, THE Grammar_Extension SHALL clearly label each button with its purpose
 5. WHEN prompts are configured, THE Grammar_Extension SHALL allow users to customize or add new correction prompts
+
+### Requirement 6
+
+**User Story:** As a user, I want to configure default correction prompts through VSCode settings, so that I can customize the behavior of each correction type to match my writing style and preferences.
+
+#### Acceptance Criteria
+
+1. WHEN a user accesses VSCode settings, THE Grammar_Extension SHALL provide editable configuration fields for each default correction prompt type
+2. WHEN a user modifies a default prompt in settings, THE Grammar_Extension SHALL persist the updated prompt value
+3. WHEN a Correction_Button is clicked, THE Grammar_Extension SHALL use the configured prompt from settings if available
+4. WHEN no custom prompt is configured for a correction type, THE Grammar_Extension SHALL use the built-in default prompt
+5. WHEN a user resets a prompt configuration, THE Grammar_Extension SHALL restore the original built-in default prompt
+6. WHEN prompt settings are displayed, THE Grammar_Extension SHALL show clear descriptions for each correction type
+7. WHEN invalid prompt content is provided, THE Grammar_Extension SHALL validate the prompt and display appropriate error messages

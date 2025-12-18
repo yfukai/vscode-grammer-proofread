@@ -25,6 +25,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const fc = __importStar(require("fast-check"));
 const CorrectionType_1 = require("../../models/CorrectionType");
+const PromptManager_1 = require("../PromptManager");
 // Create a simplified prompt manager for testing
 class PromptManagerLogic {
     constructor() {
@@ -308,6 +309,229 @@ describe('PromptManager', () => {
             expect(types).toContain(CorrectionType_1.CorrectionType.STYLE);
             expect(types).toContain(CorrectionType_1.CorrectionType.CLARITY);
             expect(types).toContain(CorrectionType_1.CorrectionType.TONE);
+        });
+    });
+});
+describe('PromptManager Settings Integration', () => {
+    let promptManager;
+    beforeEach(() => {
+        promptManager = new PromptManager_1.PromptManager();
+    });
+    describe('Property-Based Tests', () => {
+        /**
+         * Feature: grammar-proofreading-extension, Property 20: Configured prompts are used when available
+         * Validates: Requirements 6.3
+         */
+        test('should use configured prompts when available', () => {
+            // Generator for valid prompt content
+            const validPromptArb = fc.string({ minLength: 10, maxLength: 2000 })
+                .filter(s => s.trim().length >= 10 && !/^\s*$/.test(s));
+            // Generator for correction types
+            const correctionTypeArb = fc.constantFrom(CorrectionType_1.CorrectionType.GRAMMAR, CorrectionType_1.CorrectionType.STYLE, CorrectionType_1.CorrectionType.CLARITY, CorrectionType_1.CorrectionType.TONE);
+            fc.assert(fc.property(correctionTypeArb, validPromptArb, (correctionType, configuredPrompt) => {
+                // Mock the configuration provider to return the configured prompt
+                const mockDefaultPrompts = {
+                    grammar: correctionType === CorrectionType_1.CorrectionType.GRAMMAR ? configuredPrompt : 'default grammar',
+                    style: correctionType === CorrectionType_1.CorrectionType.STYLE ? configuredPrompt : 'default style',
+                    clarity: correctionType === CorrectionType_1.CorrectionType.CLARITY ? configuredPrompt : 'default clarity',
+                    tone: correctionType === CorrectionType_1.CorrectionType.TONE ? configuredPrompt : 'default tone'
+                };
+                const mockConfigProvider = {
+                    getDefaultPromptConfiguration: jest.fn().mockReturnValue(mockDefaultPrompts),
+                    getConfiguration: jest.fn(),
+                    updateConfiguration: jest.fn(),
+                    validateConfiguration: jest.fn(),
+                    testConnection: jest.fn(),
+                    updateDefaultPrompt: jest.fn(),
+                    resetDefaultPrompt: jest.fn(),
+                    validatePrompt: jest.fn()
+                };
+                // Replace the config provider
+                promptManager.configProvider = mockConfigProvider;
+                // Get the prompt - should return the configured one
+                const retrievedPrompt = promptManager.getPrompt(correctionType);
+                expect(retrievedPrompt).toBe(configuredPrompt);
+                expect(mockConfigProvider.getDefaultPromptConfiguration).toHaveBeenCalled();
+            }), { numRuns: 100 });
+        });
+        /**
+         * Feature: grammar-proofreading-extension, Property 21: Fallback to default prompts works
+         * Validates: Requirements 6.4
+         */
+        test('should fallback to built-in defaults when no custom configuration exists', () => {
+            const correctionTypeArb = fc.constantFrom(CorrectionType_1.CorrectionType.GRAMMAR, CorrectionType_1.CorrectionType.STYLE, CorrectionType_1.CorrectionType.CLARITY, CorrectionType_1.CorrectionType.TONE);
+            fc.assert(fc.property(correctionTypeArb, (correctionType) => {
+                // Mock the configuration provider to return undefined/empty for the specific type
+                const mockConfigProvider = {
+                    getDefaultPromptConfiguration: jest.fn().mockReturnValue({
+                        [correctionType]: undefined,
+                        grammar: undefined,
+                        style: undefined,
+                        clarity: undefined,
+                        tone: undefined
+                    }),
+                    getConfiguration: jest.fn(),
+                    updateConfiguration: jest.fn(),
+                    validateConfiguration: jest.fn(),
+                    testConnection: jest.fn(),
+                    updateDefaultPrompt: jest.fn(),
+                    resetDefaultPrompt: jest.fn(),
+                    validatePrompt: jest.fn()
+                };
+                // Replace the config provider
+                promptManager.configProvider = mockConfigProvider;
+                // Get the prompt - should return the built-in default
+                const retrievedPrompt = promptManager.getPrompt(correctionType);
+                const builtInDefault = promptManager.getBuiltInDefaultPrompt(correctionType);
+                expect(retrievedPrompt).toBe(builtInDefault);
+                expect(retrievedPrompt).not.toBe('Please improve the following text.'); // Should not be the fallback
+                expect(mockConfigProvider.getDefaultPromptConfiguration).toHaveBeenCalled();
+            }), { numRuns: 100 });
+        });
+        /**
+         * Feature: grammar-proofreading-extension, Property 22: Prompt reset restores defaults
+         * Validates: Requirements 6.5
+         */
+        test('should reset prompts to built-in defaults', () => {
+            const correctionTypeArb = fc.constantFrom(CorrectionType_1.CorrectionType.GRAMMAR, CorrectionType_1.CorrectionType.STYLE, CorrectionType_1.CorrectionType.CLARITY, CorrectionType_1.CorrectionType.TONE);
+            fc.assert(fc.asyncProperty(correctionTypeArb, async (correctionType) => {
+                // Mock the configuration provider
+                const mockConfigProvider = {
+                    getDefaultPromptConfiguration: jest.fn(),
+                    getConfiguration: jest.fn(),
+                    updateConfiguration: jest.fn(),
+                    validateConfiguration: jest.fn(),
+                    testConnection: jest.fn(),
+                    updateDefaultPrompt: jest.fn(),
+                    resetDefaultPrompt: jest.fn().mockResolvedValue({ success: true }),
+                    validatePrompt: jest.fn()
+                };
+                // Replace the config provider
+                promptManager.configProvider = mockConfigProvider;
+                // Reset the prompt
+                const resetResult = await promptManager.resetDefaultPrompt(correctionType);
+                expect(resetResult.success).toBe(true);
+                expect(resetResult.error).toBeUndefined();
+                expect(mockConfigProvider.resetDefaultPrompt).toHaveBeenCalledWith(correctionType);
+            }), { numRuns: 50 });
+        });
+        test('should handle prompt update operations', () => {
+            const correctionTypeArb = fc.constantFrom(CorrectionType_1.CorrectionType.GRAMMAR, CorrectionType_1.CorrectionType.STYLE, CorrectionType_1.CorrectionType.CLARITY, CorrectionType_1.CorrectionType.TONE);
+            const validPromptArb = fc.string({ minLength: 10, maxLength: 2000 })
+                .filter(s => s.trim().length >= 10 && !/^\s*$/.test(s));
+            fc.assert(fc.asyncProperty(correctionTypeArb, validPromptArb, async (correctionType, newPrompt) => {
+                // Mock the configuration provider
+                const mockConfigProvider = {
+                    getDefaultPromptConfiguration: jest.fn(),
+                    getConfiguration: jest.fn(),
+                    updateConfiguration: jest.fn(),
+                    validateConfiguration: jest.fn(),
+                    testConnection: jest.fn(),
+                    updateDefaultPrompt: jest.fn().mockResolvedValue({ success: true }),
+                    resetDefaultPrompt: jest.fn(),
+                    validatePrompt: jest.fn()
+                };
+                // Replace the config provider
+                promptManager.configProvider = mockConfigProvider;
+                // Update the prompt
+                const updateResult = await promptManager.updateDefaultPrompt(correctionType, newPrompt);
+                expect(updateResult.success).toBe(true);
+                expect(updateResult.error).toBeUndefined();
+                expect(mockConfigProvider.updateDefaultPrompt).toHaveBeenCalledWith(correctionType, newPrompt);
+            }), { numRuns: 50 });
+        });
+        test('should retrieve configured default prompts correctly', () => {
+            const correctionTypeArb = fc.constantFrom(CorrectionType_1.CorrectionType.GRAMMAR, CorrectionType_1.CorrectionType.STYLE, CorrectionType_1.CorrectionType.CLARITY, CorrectionType_1.CorrectionType.TONE);
+            const validPromptArb = fc.string({ minLength: 10, maxLength: 2000 })
+                .filter(s => s.trim().length >= 10 && !/^\s*$/.test(s));
+            fc.assert(fc.property(correctionTypeArb, validPromptArb, (correctionType, configuredPrompt) => {
+                // Mock the configuration provider
+                const mockDefaultPrompts = {
+                    grammar: correctionType === CorrectionType_1.CorrectionType.GRAMMAR ? configuredPrompt : 'default grammar',
+                    style: correctionType === CorrectionType_1.CorrectionType.STYLE ? configuredPrompt : 'default style',
+                    clarity: correctionType === CorrectionType_1.CorrectionType.CLARITY ? configuredPrompt : 'default clarity',
+                    tone: correctionType === CorrectionType_1.CorrectionType.TONE ? configuredPrompt : 'default tone'
+                };
+                const mockConfigProvider = {
+                    getDefaultPromptConfiguration: jest.fn().mockReturnValue(mockDefaultPrompts),
+                    getConfiguration: jest.fn(),
+                    updateConfiguration: jest.fn(),
+                    validateConfiguration: jest.fn(),
+                    testConnection: jest.fn(),
+                    updateDefaultPrompt: jest.fn(),
+                    resetDefaultPrompt: jest.fn(),
+                    validatePrompt: jest.fn()
+                };
+                // Replace the config provider
+                promptManager.configProvider = mockConfigProvider;
+                // Get the configured default prompt
+                const retrievedPrompt = promptManager.getConfiguredDefaultPrompt(correctionType);
+                expect(retrievedPrompt).toBe(configuredPrompt);
+            }), { numRuns: 100 });
+        });
+    });
+    describe('Unit Tests', () => {
+        test('should return built-in defaults for all correction types', () => {
+            const correctionTypes = [
+                CorrectionType_1.CorrectionType.GRAMMAR,
+                CorrectionType_1.CorrectionType.STYLE,
+                CorrectionType_1.CorrectionType.CLARITY,
+                CorrectionType_1.CorrectionType.TONE
+            ];
+            correctionTypes.forEach(type => {
+                const builtInDefault = promptManager.getBuiltInDefaultPrompt(type);
+                expect(builtInDefault).toBeTruthy();
+                expect(typeof builtInDefault).toBe('string');
+                expect(builtInDefault.length).toBeGreaterThan(10);
+                expect(builtInDefault).not.toBe('Please improve the following text.');
+            });
+        });
+        test('should handle configuration provider integration', () => {
+            // Test that the prompt manager properly delegates to the configuration provider
+            const mockConfigProvider = {
+                getDefaultPromptConfiguration: jest.fn().mockReturnValue({
+                    grammar: 'configured grammar prompt',
+                    style: 'configured style prompt',
+                    clarity: 'configured clarity prompt',
+                    tone: 'configured tone prompt'
+                }),
+                getConfiguration: jest.fn(),
+                updateConfiguration: jest.fn(),
+                validateConfiguration: jest.fn(),
+                testConnection: jest.fn(),
+                updateDefaultPrompt: jest.fn(),
+                resetDefaultPrompt: jest.fn(),
+                validatePrompt: jest.fn()
+            };
+            promptManager.configProvider = mockConfigProvider;
+            const grammarPrompt = promptManager.getConfiguredDefaultPrompt(CorrectionType_1.CorrectionType.GRAMMAR);
+            expect(grammarPrompt).toBe('configured grammar prompt');
+            expect(mockConfigProvider.getDefaultPromptConfiguration).toHaveBeenCalled();
+        });
+        test('should prioritize configured prompts over built-in defaults', () => {
+            const mockConfigProvider = {
+                getDefaultPromptConfiguration: jest.fn().mockReturnValue({
+                    grammar: 'custom configured grammar prompt',
+                    style: undefined,
+                    clarity: undefined,
+                    tone: undefined
+                }),
+                getConfiguration: jest.fn(),
+                updateConfiguration: jest.fn(),
+                validateConfiguration: jest.fn(),
+                testConnection: jest.fn(),
+                updateDefaultPrompt: jest.fn(),
+                resetDefaultPrompt: jest.fn(),
+                validatePrompt: jest.fn()
+            };
+            promptManager.configProvider = mockConfigProvider;
+            // Should use configured prompt for grammar
+            const grammarPrompt = promptManager.getPrompt(CorrectionType_1.CorrectionType.GRAMMAR);
+            expect(grammarPrompt).toBe('custom configured grammar prompt');
+            // Should fallback to built-in default for style (since configured is undefined)
+            const stylePrompt = promptManager.getPrompt(CorrectionType_1.CorrectionType.STYLE);
+            const builtInStyleDefault = promptManager.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.STYLE);
+            expect(stylePrompt).toBe(builtInStyleDefault);
         });
     });
 });
