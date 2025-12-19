@@ -14,11 +14,13 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// UI components will be implemented in later tasks
 __exportStar(require("./ExtensionActivator"), exports);
 __exportStar(require("./CommandRegistry"), exports);
 __exportStar(require("./StatusBarManager"), exports);
 __exportStar(require("./CorrectionButtonProvider"), exports);
 __exportStar(require("./NotificationManager"), exports);
 __exportStar(require("./ProgressIndicator"), exports);
+__exportStar(require("./ChatWidget"), exports);
+__exportStar(require("./MessageRenderer"), exports);
+__exportStar(require("./ConversationManager"), exports);
 //# sourceMappingURL=index.js.map

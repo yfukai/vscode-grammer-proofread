@@ -36,7 +36,7 @@ class CorrectionService {
         this.apiClient = new LLMApiClient_1.LLMApiClient();
         this.promptManager = new PromptManager_1.PromptManager();
     }
-    async performCorrection(correctionType, customPrompt) {
+    async performCorrectionByName(promptName, customPrompt) {
         try {
             // Get configuration
             const config = this.configProvider.getConfiguration();
@@ -47,6 +47,11 @@ class CorrectionService {
                     error: `Configuration error: ${configValidation.errors.join(', ')}`
                 };
             }
+            // Get the prompt
+            const prompt = customPrompt || this.promptManager.getPromptByName(promptName);
+            if (!prompt) {
+                return { success: false, error: `Prompt '${promptName}' not found` };
+            }
             // Capture text from editor
             const textCapture = this.textProcessor.captureEditorText();
             if (!textCapture.success) {
@@ -55,16 +60,84 @@ class CorrectionService {
             // Show progress
             return await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: `Applying ${correctionType} correction...`,
+                title: `Applying ${promptName} correction...`,
                 cancellable: false
             }, async (progress) => {
                 progress.report({ increment: 25, message: 'Preparing request...' });
                 // Build correction request
-                const prompt = customPrompt || this.promptManager.getPrompt(correctionType);
+                const editorState = this.textProcessor.getEditorState();
                 const correctionRequest = {
                     text: textCapture.text,
                     prompt,
-                    correctionType,
+                    promptName,
+                    isSelection: editorState.hasSelection,
+                    selectionRange: editorState.hasSelection ? { start: 0, end: textCapture.text.length } : undefined,
+                    apiEndpoint: config.apiEndpoint,
+                    apiKey: config.apiKey
+                };
+                progress.report({ increment: 25, message: 'Sending to API...' });
+                // Send to API
+                const apiResult = await this.apiClient.sendCorrectionRequest(correctionRequest, config);
+                if (!apiResult.success) {
+                    return { success: false, error: apiResult.error };
+                }
+                progress.report({ increment: 25, message: 'Processing response...' });
+                // Replace text in editor
+                const replaceResult = await this.textProcessor.replaceEditorText(apiResult.data.correctedText);
+                if (!replaceResult.success) {
+                    return { success: false, error: replaceResult.error };
+                }
+                progress.report({ increment: 25, message: 'Showing explanation...' });
+                // Show explanation
+                await this.showCorrectionExplanation(apiResult.data);
+                return { success: true };
+            });
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
+        }
+    }
+    async performCorrectionById(promptId, customPrompt) {
+        try {
+            // Get configuration
+            const config = this.configProvider.getConfiguration();
+            const configValidation = this.configProvider.validateConfiguration(config);
+            if (!configValidation.isValid) {
+                return {
+                    success: false,
+                    error: `Configuration error: ${configValidation.errors.join(', ')}`
+                };
+            }
+            // Get the name-prompt pair
+            const namePromptPair = this.promptManager.getNamePromptPairById(promptId);
+            if (!namePromptPair) {
+                return { success: false, error: `Prompt with ID '${promptId}' not found` };
+            }
+            // Get the prompt
+            const prompt = customPrompt || namePromptPair.prompt;
+            // Capture text from editor
+            const textCapture = this.textProcessor.captureEditorText();
+            if (!textCapture.success) {
+                return { success: false, error: textCapture.error };
+            }
+            // Show progress
+            return await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Applying ${namePromptPair.name} correction...`,
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ increment: 25, message: 'Preparing request...' });
+                // Build correction request
+                const editorState = this.textProcessor.getEditorState();
+                const correctionRequest = {
+                    text: textCapture.text,
+                    prompt,
+                    promptName: namePromptPair.name,
+                    isSelection: editorState.hasSelection,
+                    selectionRange: editorState.hasSelection ? { start: 0, end: textCapture.text.length } : undefined,
                     apiEndpoint: config.apiEndpoint,
                     apiKey: config.apiKey
                 };
@@ -112,14 +185,23 @@ class CorrectionService {
             await vscode.commands.executeCommand('undo');
         }
     }
-    getPromptForCorrectionType(correctionType) {
-        return this.promptManager.getPrompt(correctionType);
+    getPromptByName(name) {
+        return this.promptManager.getPromptByName(name);
     }
-    async updateDefaultPrompt(correctionType, prompt) {
-        return await this.promptManager.updateDefaultPrompt(correctionType, prompt);
+    getPromptById(id) {
+        return this.promptManager.getPromptById(id);
     }
-    async resetDefaultPrompt(correctionType) {
-        return await this.promptManager.resetDefaultPrompt(correctionType);
+    getAllNamePromptPairs() {
+        return this.promptManager.getAllNamePromptPairs();
+    }
+    async createNamePromptPair(namePromptPair) {
+        return await this.promptManager.createNamePromptPair(namePromptPair);
+    }
+    async updateNamePromptPair(id, updates) {
+        return await this.promptManager.updateNamePromptPair(id, updates);
+    }
+    async deleteNamePromptPair(id) {
+        return await this.promptManager.deleteNamePromptPair(id);
     }
 }
 exports.CorrectionService = CorrectionService;

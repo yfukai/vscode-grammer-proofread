@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { CorrectionType } from '../models/CorrectionType';
 import { CorrectionRequest } from '../models/CorrectionRequest';
 import { CorrectionResponse } from '../models/CorrectionResponse';
+import { NamePromptPair } from '../models/NamePromptPair';
 import { ConfigurationProvider } from './ConfigurationProvider';
 import { TextProcessor } from './TextProcessor';
 import { LLMApiClient } from './LLMApiClient';
@@ -20,7 +20,7 @@ export class CorrectionService {
         this.promptManager = new PromptManager();
     }
 
-    async performCorrection(correctionType: CorrectionType, customPrompt?: string): Promise<{ success: boolean; error?: string }> {
+    async performCorrectionByName(promptName: string, customPrompt?: string): Promise<{ success: boolean; error?: string }> {
         try {
             // Get configuration
             const config = this.configProvider.getConfiguration();
@@ -33,6 +33,12 @@ export class CorrectionService {
                 };
             }
 
+            // Get the prompt
+            const prompt = customPrompt || this.promptManager.getPromptByName(promptName);
+            if (!prompt) {
+                return { success: false, error: `Prompt '${promptName}' not found` };
+            }
+
             // Capture text from editor
             const textCapture = this.textProcessor.captureEditorText();
             if (!textCapture.success) {
@@ -42,17 +48,99 @@ export class CorrectionService {
             // Show progress
             return await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: `Applying ${correctionType} correction...`,
+                title: `Applying ${promptName} correction...`,
                 cancellable: false
             }, async (progress) => {
                 progress.report({ increment: 25, message: 'Preparing request...' });
 
                 // Build correction request
-                const prompt = customPrompt || this.promptManager.getPrompt(correctionType);
+                const editorState = this.textProcessor.getEditorState();
                 const correctionRequest: CorrectionRequest = {
                     text: textCapture.text!,
                     prompt,
-                    correctionType,
+                    promptName,
+                    isSelection: editorState.hasSelection,
+                    selectionRange: editorState.hasSelection ? { start: 0, end: textCapture.text!.length } : undefined,
+                    apiEndpoint: config.apiEndpoint,
+                    apiKey: config.apiKey
+                };
+
+                progress.report({ increment: 25, message: 'Sending to API...' });
+
+                // Send to API
+                const apiResult = await this.apiClient.sendCorrectionRequest(correctionRequest, config);
+                if (!apiResult.success) {
+                    return { success: false, error: apiResult.error };
+                }
+
+                progress.report({ increment: 25, message: 'Processing response...' });
+
+                // Replace text in editor
+                const replaceResult = await this.textProcessor.replaceEditorText(apiResult.data!.correctedText);
+                if (!replaceResult.success) {
+                    return { success: false, error: replaceResult.error };
+                }
+
+                progress.report({ increment: 25, message: 'Showing explanation...' });
+
+                // Show explanation
+                await this.showCorrectionExplanation(apiResult.data!);
+
+                return { success: true };
+            });
+
+        } catch (error) {
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Unknown error occurred' 
+            };
+        }
+    }
+
+    async performCorrectionById(promptId: string, customPrompt?: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            // Get configuration
+            const config = this.configProvider.getConfiguration();
+            const configValidation = this.configProvider.validateConfiguration(config);
+            
+            if (!configValidation.isValid) {
+                return { 
+                    success: false, 
+                    error: `Configuration error: ${configValidation.errors.join(', ')}` 
+                };
+            }
+
+            // Get the name-prompt pair
+            const namePromptPair = this.promptManager.getNamePromptPairById(promptId);
+            if (!namePromptPair) {
+                return { success: false, error: `Prompt with ID '${promptId}' not found` };
+            }
+
+            // Get the prompt
+            const prompt = customPrompt || namePromptPair.prompt;
+
+            // Capture text from editor
+            const textCapture = this.textProcessor.captureEditorText();
+            if (!textCapture.success) {
+                return { success: false, error: textCapture.error };
+            }
+
+            // Show progress
+            return await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Applying ${namePromptPair.name} correction...`,
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ increment: 25, message: 'Preparing request...' });
+
+                // Build correction request
+                const editorState = this.textProcessor.getEditorState();
+                const correctionRequest: CorrectionRequest = {
+                    text: textCapture.text!,
+                    prompt,
+                    promptName: namePromptPair.name,
+                    isSelection: editorState.hasSelection,
+                    selectionRange: editorState.hasSelection ? { start: 0, end: textCapture.text!.length } : undefined,
                     apiEndpoint: config.apiEndpoint,
                     apiKey: config.apiKey
                 };
@@ -119,15 +207,27 @@ export class CorrectionService {
         }
     }
 
-    getPromptForCorrectionType(correctionType: CorrectionType): string {
-        return this.promptManager.getPrompt(correctionType);
+    getPromptByName(name: string): string | undefined {
+        return this.promptManager.getPromptByName(name);
     }
 
-    async updateDefaultPrompt(correctionType: CorrectionType, prompt: string): Promise<{ success: boolean; error?: string }> {
-        return await this.promptManager.updateDefaultPrompt(correctionType, prompt);
+    getPromptById(id: string): string | undefined {
+        return this.promptManager.getPromptById(id);
     }
 
-    async resetDefaultPrompt(correctionType: CorrectionType): Promise<{ success: boolean; error?: string }> {
-        return await this.promptManager.resetDefaultPrompt(correctionType);
+    getAllNamePromptPairs(): NamePromptPair[] {
+        return this.promptManager.getAllNamePromptPairs();
+    }
+
+    async createNamePromptPair(namePromptPair: Omit<NamePromptPair, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; error?: string; id?: string }> {
+        return await this.promptManager.createNamePromptPair(namePromptPair);
+    }
+
+    async updateNamePromptPair(id: string, updates: Partial<Omit<NamePromptPair, 'id' | 'createdAt' | 'updatedAt'>>): Promise<{ success: boolean; error?: string }> {
+        return await this.promptManager.updateNamePromptPair(id, updates);
+    }
+
+    async deleteNamePromptPair(id: string): Promise<{ success: boolean; error?: string }> {
+        return await this.promptManager.deleteNamePromptPair(id);
     }
 }

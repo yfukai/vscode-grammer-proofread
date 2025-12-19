@@ -63,21 +63,17 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommandRegistry = void 0;
 const vscode = __importStar(__webpack_require__(3));
-const CorrectionType_1 = __webpack_require__(4);
-const CorrectionService_1 = __webpack_require__(5);
+const CorrectionService_1 = __webpack_require__(4);
 class CommandRegistry {
     constructor() {
         this.correctionService = new CorrectionService_1.CorrectionService();
     }
     registerCommands(context) {
-        // Register grammar correction command
-        const grammarCommand = vscode.commands.registerCommand('grammarProofreading.correctGrammar', () => this.handleCorrectionCommand(CorrectionType_1.CorrectionType.GRAMMAR));
-        // Register style correction command
-        const styleCommand = vscode.commands.registerCommand('grammarProofreading.correctStyle', () => this.handleCorrectionCommand(CorrectionType_1.CorrectionType.STYLE));
-        // Register clarity correction command
-        const clarityCommand = vscode.commands.registerCommand('grammarProofreading.correctClarity', () => this.handleCorrectionCommand(CorrectionType_1.CorrectionType.CLARITY));
-        // Register tone correction command
-        const toneCommand = vscode.commands.registerCommand('grammarProofreading.correctTone', () => this.handleCorrectionCommand(CorrectionType_1.CorrectionType.TONE));
+        // Register default correction commands using built-in name-prompt pairs
+        const grammarCommand = vscode.commands.registerCommand('grammarProofreading.correctGrammar', () => this.handleCorrectionCommand('Grammar'));
+        const styleCommand = vscode.commands.registerCommand('grammarProofreading.correctStyle', () => this.handleCorrectionCommand('Style'));
+        const clarityCommand = vscode.commands.registerCommand('grammarProofreading.correctClarity', () => this.handleCorrectionCommand('Clarity'));
+        const toneCommand = vscode.commands.registerCommand('grammarProofreading.correctTone', () => this.handleCorrectionCommand('Tone'));
         // Register custom correction command
         const customCommand = vscode.commands.registerCommand('grammarProofreading.correctCustom', () => this.handleCustomCorrectionCommand());
         // Register configuration command
@@ -85,9 +81,9 @@ class CommandRegistry {
         // Add all commands to context subscriptions
         context.subscriptions.push(grammarCommand, styleCommand, clarityCommand, toneCommand, customCommand, configCommand);
     }
-    async handleCorrectionCommand(correctionType) {
+    async handleCorrectionCommand(promptName) {
         try {
-            const result = await this.correctionService.performCorrection(correctionType);
+            const result = await this.correctionService.performCorrectionByName(promptName);
             if (!result.success) {
                 vscode.window.showErrorMessage(`Correction failed: ${result.error}`);
             }
@@ -99,21 +95,59 @@ class CommandRegistry {
     }
     async handleCustomCorrectionCommand() {
         try {
-            // Prompt user for custom correction prompt
-            const customPrompt = await vscode.window.showInputBox({
-                prompt: 'Enter your custom correction instructions',
-                placeHolder: 'e.g., Make this text more formal and professional',
-                validateInput: (value) => {
-                    if (!value || value.trim() === '') {
-                        return 'Please enter correction instructions';
-                    }
-                    return null;
-                }
+            // Get all available name-prompt pairs
+            const namePromptPairs = this.correctionService.getAllNamePromptPairs();
+            if (namePromptPairs.length === 0) {
+                vscode.window.showWarningMessage('No custom prompts configured. Please add some in settings.');
+                return;
+            }
+            // Show quick pick for available prompts
+            const items = namePromptPairs.map(pair => ({
+                label: pair.name,
+                description: pair.description || '',
+                detail: pair.prompt.substring(0, 100) + (pair.prompt.length > 100 ? '...' : ''),
+                pair
+            }));
+            items.push({
+                label: '$(add) Create Custom Prompt...',
+                description: 'Enter a one-time custom prompt',
+                detail: 'Use a custom prompt without saving it',
+                pair: null
             });
-            if (customPrompt) {
-                const result = await this.correctionService.performCorrection(CorrectionType_1.CorrectionType.CUSTOM, customPrompt);
+            const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Select a correction type or create a custom prompt',
+                matchOnDescription: true,
+                matchOnDetail: true
+            });
+            if (!selected) {
+                return;
+            }
+            if (selected.pair) {
+                // Use existing name-prompt pair
+                const result = await this.correctionService.performCorrectionById(selected.pair.id);
                 if (!result.success) {
                     vscode.window.showErrorMessage(`Correction failed: ${result.error}`);
+                }
+            }
+            else {
+                // Create custom prompt
+                const customPrompt = await vscode.window.showInputBox({
+                    prompt: 'Enter your custom correction instructions',
+                    placeHolder: 'e.g., Make this text more formal and professional',
+                    validateInput: (value) => {
+                        if (!value || value.trim() === '') {
+                            return 'Please enter correction instructions';
+                        }
+                        return null;
+                    }
+                });
+                if (customPrompt) {
+                    // Use the first available name-prompt pair as a base, but with custom prompt
+                    const firstPair = namePromptPairs[0];
+                    const result = await this.correctionService.performCorrectionById(firstPair.id, customPrompt);
+                    if (!result.success) {
+                        vscode.window.showErrorMessage(`Correction failed: ${result.error}`);
+                    }
                 }
             }
         }
@@ -138,24 +172,6 @@ module.exports = require("vscode");
 
 /***/ }),
 /* 4 */
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CorrectionType = void 0;
-var CorrectionType;
-(function (CorrectionType) {
-    CorrectionType["GRAMMAR"] = "grammar";
-    CorrectionType["STYLE"] = "style";
-    CorrectionType["CLARITY"] = "clarity";
-    CorrectionType["TONE"] = "tone";
-    CorrectionType["CUSTOM"] = "custom";
-})(CorrectionType = exports.CorrectionType || (exports.CorrectionType = {}));
-
-
-/***/ }),
-/* 5 */
 /***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
@@ -186,8 +202,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CorrectionService = void 0;
 const vscode = __importStar(__webpack_require__(3));
-const ConfigurationProvider_1 = __webpack_require__(6);
-const TextProcessor_1 = __webpack_require__(41);
+const ConfigurationProvider_1 = __webpack_require__(5);
+const TextProcessor_1 = __webpack_require__(40);
 const LLMApiClient_1 = __webpack_require__(42);
 const PromptManager_1 = __webpack_require__(115);
 class CorrectionService {
@@ -197,7 +213,7 @@ class CorrectionService {
         this.apiClient = new LLMApiClient_1.LLMApiClient();
         this.promptManager = new PromptManager_1.PromptManager();
     }
-    async performCorrection(correctionType, customPrompt) {
+    async performCorrectionByName(promptName, customPrompt) {
         try {
             // Get configuration
             const config = this.configProvider.getConfiguration();
@@ -208,6 +224,11 @@ class CorrectionService {
                     error: `Configuration error: ${configValidation.errors.join(', ')}`
                 };
             }
+            // Get the prompt
+            const prompt = customPrompt || this.promptManager.getPromptByName(promptName);
+            if (!prompt) {
+                return { success: false, error: `Prompt '${promptName}' not found` };
+            }
             // Capture text from editor
             const textCapture = this.textProcessor.captureEditorText();
             if (!textCapture.success) {
@@ -216,16 +237,84 @@ class CorrectionService {
             // Show progress
             return await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: `Applying ${correctionType} correction...`,
+                title: `Applying ${promptName} correction...`,
                 cancellable: false
             }, async (progress) => {
                 progress.report({ increment: 25, message: 'Preparing request...' });
                 // Build correction request
-                const prompt = customPrompt || this.promptManager.getPrompt(correctionType);
+                const editorState = this.textProcessor.getEditorState();
                 const correctionRequest = {
                     text: textCapture.text,
                     prompt,
-                    correctionType,
+                    promptName,
+                    isSelection: editorState.hasSelection,
+                    selectionRange: editorState.hasSelection ? { start: 0, end: textCapture.text.length } : undefined,
+                    apiEndpoint: config.apiEndpoint,
+                    apiKey: config.apiKey
+                };
+                progress.report({ increment: 25, message: 'Sending to API...' });
+                // Send to API
+                const apiResult = await this.apiClient.sendCorrectionRequest(correctionRequest, config);
+                if (!apiResult.success) {
+                    return { success: false, error: apiResult.error };
+                }
+                progress.report({ increment: 25, message: 'Processing response...' });
+                // Replace text in editor
+                const replaceResult = await this.textProcessor.replaceEditorText(apiResult.data.correctedText);
+                if (!replaceResult.success) {
+                    return { success: false, error: replaceResult.error };
+                }
+                progress.report({ increment: 25, message: 'Showing explanation...' });
+                // Show explanation
+                await this.showCorrectionExplanation(apiResult.data);
+                return { success: true };
+            });
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
+        }
+    }
+    async performCorrectionById(promptId, customPrompt) {
+        try {
+            // Get configuration
+            const config = this.configProvider.getConfiguration();
+            const configValidation = this.configProvider.validateConfiguration(config);
+            if (!configValidation.isValid) {
+                return {
+                    success: false,
+                    error: `Configuration error: ${configValidation.errors.join(', ')}`
+                };
+            }
+            // Get the name-prompt pair
+            const namePromptPair = this.promptManager.getNamePromptPairById(promptId);
+            if (!namePromptPair) {
+                return { success: false, error: `Prompt with ID '${promptId}' not found` };
+            }
+            // Get the prompt
+            const prompt = customPrompt || namePromptPair.prompt;
+            // Capture text from editor
+            const textCapture = this.textProcessor.captureEditorText();
+            if (!textCapture.success) {
+                return { success: false, error: textCapture.error };
+            }
+            // Show progress
+            return await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Applying ${namePromptPair.name} correction...`,
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ increment: 25, message: 'Preparing request...' });
+                // Build correction request
+                const editorState = this.textProcessor.getEditorState();
+                const correctionRequest = {
+                    text: textCapture.text,
+                    prompt,
+                    promptName: namePromptPair.name,
+                    isSelection: editorState.hasSelection,
+                    selectionRange: editorState.hasSelection ? { start: 0, end: textCapture.text.length } : undefined,
                     apiEndpoint: config.apiEndpoint,
                     apiKey: config.apiKey
                 };
@@ -273,21 +362,30 @@ class CorrectionService {
             await vscode.commands.executeCommand('undo');
         }
     }
-    getPromptForCorrectionType(correctionType) {
-        return this.promptManager.getPrompt(correctionType);
+    getPromptByName(name) {
+        return this.promptManager.getPromptByName(name);
     }
-    async updateDefaultPrompt(correctionType, prompt) {
-        return await this.promptManager.updateDefaultPrompt(correctionType, prompt);
+    getPromptById(id) {
+        return this.promptManager.getPromptById(id);
     }
-    async resetDefaultPrompt(correctionType) {
-        return await this.promptManager.resetDefaultPrompt(correctionType);
+    getAllNamePromptPairs() {
+        return this.promptManager.getAllNamePromptPairs();
+    }
+    async createNamePromptPair(namePromptPair) {
+        return await this.promptManager.createNamePromptPair(namePromptPair);
+    }
+    async updateNamePromptPair(id, updates) {
+        return await this.promptManager.updateNamePromptPair(id, updates);
+    }
+    async deleteNamePromptPair(id) {
+        return await this.promptManager.deleteNamePromptPair(id);
     }
 }
 exports.CorrectionService = CorrectionService;
 
 
 /***/ }),
-/* 6 */
+/* 5 */
 /***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
 "use strict";
@@ -321,8 +419,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ConfigurationProvider = void 0;
 const vscode = __importStar(__webpack_require__(3));
-const node_fetch_1 = __importDefault(__webpack_require__(7));
-const CorrectionType_1 = __webpack_require__(4);
+const node_fetch_1 = __importDefault(__webpack_require__(6));
 class ConfigurationProvider {
     getConfiguration() {
         const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
@@ -332,82 +429,214 @@ class ConfigurationProvider {
             model: config.get('model', 'gpt-3.5-turbo'),
             maxTokens: config.get('maxTokens', 1000),
             temperature: config.get('temperature', 0.3),
-            customPrompts: config.get('customPrompts', []),
-            defaultPrompts: this.getDefaultPromptConfiguration()
+            customPrompts: this.getNamePromptPairs()
         };
+    }
+    getNamePromptPairs() {
+        const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+        const customPrompts = config.get('customPrompts', []);
+        // Return custom prompts if they exist, otherwise return default ones
+        if (!customPrompts || customPrompts.length === 0) {
+            return this.getDefaultNamePromptPairs();
+        }
+        return customPrompts;
     }
     async updateConfiguration(key, value, target) {
         const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
         await config.update(key, value, target || vscode.ConfigurationTarget.Global);
     }
-    getDefaultPromptConfiguration() {
-        const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
-        return {
-            grammar: config.get('defaultPrompts.grammar') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.GRAMMAR),
-            style: config.get('defaultPrompts.style') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.STYLE),
-            clarity: config.get('defaultPrompts.clarity') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.CLARITY),
-            tone: config.get('defaultPrompts.tone') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.TONE)
-        };
+    getDefaultNamePromptPairs() {
+        const now = new Date();
+        return [
+            {
+                id: 'grammar',
+                name: 'Grammar',
+                prompt: 'Please correct any grammatical errors in the following text. Focus on:\n' +
+                    '- Subject-verb agreement\n' +
+                    '- Verb tenses and consistency\n' +
+                    '- Punctuation and capitalization\n' +
+                    '- Sentence structure\n' +
+                    'Preserve the original meaning and style.',
+                description: 'Fix grammatical errors and improve sentence structure',
+                createdAt: now,
+                updatedAt: now
+            },
+            {
+                id: 'style',
+                name: 'Style',
+                prompt: 'Please improve the writing style of the following text. Focus on:\n' +
+                    '- Word choice and vocabulary\n' +
+                    '- Sentence variety and flow\n' +
+                    '- Clarity and conciseness\n' +
+                    '- Professional tone\n' +
+                    'Maintain the author\'s voice while enhancing readability.',
+                description: 'Improve writing style and readability',
+                createdAt: now,
+                updatedAt: now
+            },
+            {
+                id: 'clarity',
+                name: 'Clarity',
+                prompt: 'Please improve the clarity and readability of the following text. Focus on:\n' +
+                    '- Simplifying complex sentences\n' +
+                    '- Removing ambiguity\n' +
+                    '- Improving logical flow\n' +
+                    '- Making concepts more understandable\n' +
+                    'Ensure the message is clear and accessible.',
+                description: 'Enhance clarity and remove ambiguity',
+                createdAt: now,
+                updatedAt: now
+            },
+            {
+                id: 'tone',
+                name: 'Tone',
+                prompt: 'Please adjust the tone of the following text to be more appropriate. Focus on:\n' +
+                    '- Consistency in formality level\n' +
+                    '- Appropriate voice for the audience\n' +
+                    '- Professional yet engaging language\n' +
+                    '- Removing inappropriate or inconsistent tone\n' +
+                    'Maintain the core message while improving tone.',
+                description: 'Adjust tone and formality level',
+                createdAt: now,
+                updatedAt: now
+            }
+        ];
     }
-    getBuiltInDefaultPrompt(correctionType) {
-        const builtInDefaults = {
-            [CorrectionType_1.CorrectionType.GRAMMAR]: 'Please correct any grammatical errors in the following text. Focus on:\n' +
-                '- Subject-verb agreement\n' +
-                '- Verb tenses and consistency\n' +
-                '- Punctuation and capitalization\n' +
-                '- Sentence structure\n' +
-                'Preserve the original meaning and style.',
-            [CorrectionType_1.CorrectionType.STYLE]: 'Please improve the writing style of the following text. Focus on:\n' +
-                '- Word choice and vocabulary\n' +
-                '- Sentence variety and flow\n' +
-                '- Clarity and conciseness\n' +
-                '- Professional tone\n' +
-                'Maintain the author\'s voice while enhancing readability.',
-            [CorrectionType_1.CorrectionType.CLARITY]: 'Please improve the clarity and readability of the following text. Focus on:\n' +
-                '- Simplifying complex sentences\n' +
-                '- Removing ambiguity\n' +
-                '- Improving logical flow\n' +
-                '- Making concepts more understandable\n' +
-                'Ensure the message is clear and accessible.',
-            [CorrectionType_1.CorrectionType.TONE]: 'Please adjust the tone of the following text to be more appropriate. Focus on:\n' +
-                '- Consistency in formality level\n' +
-                '- Appropriate voice for the audience\n' +
-                '- Professional yet engaging language\n' +
-                '- Removing inappropriate or inconsistent tone\n' +
-                'Maintain the core message while improving tone.'
-        };
-        return builtInDefaults[correctionType] || 'Please improve the following text.';
-    }
-    async updateDefaultPrompt(correctionType, prompt, target) {
+    // CRUD operations for name-prompt pairs
+    async createNamePromptPair(namePromptPair) {
         try {
-            const validation = this.validatePrompt(prompt);
+            // Validate the name-prompt pair
+            const validation = this.validateNamePromptPair(namePromptPair);
             if (!validation.isValid) {
                 return { success: false, error: validation.errors.join(', ') };
             }
-            const key = `defaultPrompts.${correctionType}`;
-            await this.updateConfiguration(key, prompt, target);
-            return { success: true };
+            // Get the actual stored custom prompts and all available pairs for duplicate checking
+            const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+            const existingCustomPairs = config.get('customPrompts', []);
+            const allPairs = this.getNamePromptPairs(); // This includes defaults + custom
+            // Check for duplicate names across all pairs (defaults + custom)
+            if (allPairs.some(pair => pair.name.toLowerCase() === namePromptPair.name.toLowerCase())) {
+                return { success: false, error: 'A name-prompt pair with this name already exists' };
+            }
+            // Create new pair with generated ID and timestamps
+            const now = new Date();
+            const id = this.generateId();
+            const newPair = {
+                ...namePromptPair,
+                id,
+                createdAt: now,
+                updatedAt: now
+            };
+            // Add to existing custom pairs and save
+            const updatedPairs = [...existingCustomPairs, newPair];
+            await this.updateConfiguration('customPrompts', updatedPairs);
+            return { success: true, id };
         }
         catch (error) {
             return {
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to update prompt'
+                error: error instanceof Error ? error.message : 'Failed to create name-prompt pair'
             };
         }
     }
-    async resetDefaultPrompt(correctionType, target) {
+    async updateNamePromptPair(id, updates) {
         try {
-            const builtInDefault = this.getBuiltInDefaultPrompt(correctionType);
-            const key = `defaultPrompts.${correctionType}`;
-            await this.updateConfiguration(key, builtInDefault, target);
+            // Get the actual stored custom prompts, not the fallback defaults
+            const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+            const existingPairs = config.get('customPrompts', []);
+            const pairIndex = existingPairs.findIndex(pair => pair.id === id);
+            if (pairIndex === -1) {
+                return { success: false, error: 'Name-prompt pair not found' };
+            }
+            // Create updated pair
+            const existingPair = existingPairs[pairIndex];
+            const updatedPair = {
+                ...existingPair,
+                ...updates,
+                id: existingPair.id,
+                createdAt: existingPair.createdAt,
+                updatedAt: new Date()
+            };
+            // Validate the updated pair
+            const validation = this.validateNamePromptPair(updatedPair);
+            if (!validation.isValid) {
+                return { success: false, error: validation.errors.join(', ') };
+            }
+            // Check for duplicate names (excluding current pair)
+            if (updates.name) {
+                const otherPairs = existingPairs.filter(pair => pair.id !== id);
+                if (otherPairs.some(pair => pair.name.toLowerCase() === updates.name.toLowerCase())) {
+                    return { success: false, error: 'A name-prompt pair with this name already exists' };
+                }
+            }
+            // Update the pair and save
+            const updatedPairs = [...existingPairs];
+            updatedPairs[pairIndex] = updatedPair;
+            await this.updateConfiguration('customPrompts', updatedPairs);
             return { success: true };
         }
         catch (error) {
             return {
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to reset prompt'
+                error: error instanceof Error ? error.message : 'Failed to update name-prompt pair'
             };
         }
+    }
+    async deleteNamePromptPair(id) {
+        try {
+            // Get the actual stored custom prompts, not the fallback defaults
+            const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+            const existingPairs = config.get('customPrompts', []);
+            const pairIndex = existingPairs.findIndex(pair => pair.id === id);
+            if (pairIndex === -1) {
+                return { success: false, error: 'Name-prompt pair not found' };
+            }
+            // Remove the pair and save
+            const updatedPairs = existingPairs.filter(pair => pair.id !== id);
+            await this.updateConfiguration('customPrompts', updatedPairs);
+            return { success: true };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to delete name-prompt pair'
+            };
+        }
+    }
+    getNamePromptPairById(id) {
+        const pairs = this.getNamePromptPairs();
+        return pairs.find(pair => pair.id === id);
+    }
+    getNamePromptPairByName(name) {
+        const pairs = this.getNamePromptPairs();
+        return pairs.find(pair => pair.name.toLowerCase() === name.toLowerCase());
+    }
+    generateId() {
+        return `npp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    validateNamePromptPair(pair) {
+        const errors = [];
+        // Validate name
+        if (!pair.name || pair.name.trim() === '') {
+            errors.push('Name is required');
+        }
+        else if (pair.name.trim().length < 1) {
+            errors.push('Name cannot be empty');
+        }
+        else if (pair.name.length > 50) {
+            errors.push('Name cannot exceed 50 characters');
+        }
+        // Validate prompt using existing validation
+        if (pair.prompt !== undefined) {
+            const promptValidation = this.validatePrompt(pair.prompt);
+            if (!promptValidation.isValid) {
+                errors.push(...promptValidation.errors);
+            }
+        }
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
     }
     validatePrompt(prompt) {
         const errors = [];
@@ -496,7 +725,7 @@ ConfigurationProvider.CONFIGURATION_SECTION = 'grammarProofreading';
 
 
 /***/ }),
-/* 7 */
+/* 6 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -517,23 +746,23 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fileFromSync: () => (/* reexport safe */ fetch_blob_from_js__WEBPACK_IMPORTED_MODULE_16__.fileFromSync),
 /* harmony export */   isRedirect: () => (/* reexport safe */ _utils_is_redirect_js__WEBPACK_IMPORTED_MODULE_12__.isRedirect)
 /* harmony export */ });
-/* harmony import */ var node_http__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(8);
-/* harmony import */ var node_https__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(9);
-/* harmony import */ var node_zlib__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(10);
-/* harmony import */ var node_stream__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(11);
-/* harmony import */ var node_buffer__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(12);
-/* harmony import */ var data_uri_to_buffer__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(13);
-/* harmony import */ var _body_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(14);
-/* harmony import */ var _response_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(27);
-/* harmony import */ var _headers_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(28);
-/* harmony import */ var _request_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(30);
-/* harmony import */ var _errors_fetch_error_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(24);
-/* harmony import */ var _errors_abort_error_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(35);
-/* harmony import */ var _utils_is_redirect_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(29);
-/* harmony import */ var formdata_polyfill_esm_min_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(22);
-/* harmony import */ var _utils_is_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(26);
-/* harmony import */ var _utils_referrer_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(33);
-/* harmony import */ var fetch_blob_from_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(36);
+/* harmony import */ var node_http__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(7);
+/* harmony import */ var node_https__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(8);
+/* harmony import */ var node_zlib__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(9);
+/* harmony import */ var node_stream__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(10);
+/* harmony import */ var node_buffer__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(11);
+/* harmony import */ var data_uri_to_buffer__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(12);
+/* harmony import */ var _body_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(13);
+/* harmony import */ var _response_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(26);
+/* harmony import */ var _headers_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(27);
+/* harmony import */ var _request_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(29);
+/* harmony import */ var _errors_fetch_error_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(23);
+/* harmony import */ var _errors_abort_error_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(34);
+/* harmony import */ var _utils_is_redirect_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(28);
+/* harmony import */ var formdata_polyfill_esm_min_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(21);
+/* harmony import */ var _utils_is_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(25);
+/* harmony import */ var _utils_referrer_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(32);
+/* harmony import */ var fetch_blob_from_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(35);
 /**
  * Index.js
  *
@@ -947,42 +1176,42 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 
 
 /***/ }),
-/* 8 */
+/* 7 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:http");
 
 /***/ }),
-/* 9 */
+/* 8 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:https");
 
 /***/ }),
-/* 10 */
+/* 9 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:zlib");
 
 /***/ }),
-/* 11 */
+/* 10 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:stream");
 
 /***/ }),
-/* 12 */
+/* 11 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:buffer");
 
 /***/ }),
-/* 13 */
+/* 12 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1046,7 +1275,7 @@ function dataUriToBuffer(uri) {
 //# sourceMappingURL=index.js.map
 
 /***/ }),
-/* 14 */
+/* 13 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1058,14 +1287,14 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getTotalBytes: () => (/* binding */ getTotalBytes),
 /* harmony export */   writeToStream: () => (/* binding */ writeToStream)
 /* harmony export */ });
-/* harmony import */ var node_stream__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(11);
-/* harmony import */ var node_util__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(15);
-/* harmony import */ var node_buffer__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(12);
-/* harmony import */ var fetch_blob__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(16);
-/* harmony import */ var formdata_polyfill_esm_min_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(22);
-/* harmony import */ var _errors_fetch_error_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(24);
-/* harmony import */ var _errors_base_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(25);
-/* harmony import */ var _utils_is_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(26);
+/* harmony import */ var node_stream__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(10);
+/* harmony import */ var node_util__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(14);
+/* harmony import */ var node_buffer__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(11);
+/* harmony import */ var fetch_blob__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(15);
+/* harmony import */ var formdata_polyfill_esm_min_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(21);
+/* harmony import */ var _errors_fetch_error_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(23);
+/* harmony import */ var _errors_base_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(24);
+/* harmony import */ var _utils_is_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(25);
 
 /**
  * Body.js
@@ -1466,14 +1695,14 @@ const writeToStream = async (dest, {body}) => {
 
 
 /***/ }),
-/* 15 */
+/* 14 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:util");
 
 /***/ }),
-/* 16 */
+/* 15 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1482,7 +1711,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   Blob: () => (/* binding */ Blob),
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _streams_cjs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(17);
+/* harmony import */ var _streams_cjs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(16);
 /*! fetch-blob. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
 
 // TODO (jimmywarting): in the feature use conditional loading with top level await (requires 14.x)
@@ -1736,7 +1965,7 @@ const Blob = _Blob
 
 
 /***/ }),
-/* 17 */
+/* 16 */
 /***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
 
 /* c8 ignore start */
@@ -1748,11 +1977,11 @@ if (!globalThis.ReadableStream) {
   // and it's preferred over the polyfilled version. So we also
   // suppress the warning that gets emitted by NodeJS for using it.
   try {
-    const process = __webpack_require__(18)
+    const process = __webpack_require__(17)
     const { emitWarning } = process
     try {
       process.emitWarning = () => {}
-      Object.assign(globalThis, __webpack_require__(19))
+      Object.assign(globalThis, __webpack_require__(18))
       process.emitWarning = emitWarning
     } catch (error) {
       process.emitWarning = emitWarning
@@ -1760,14 +1989,14 @@ if (!globalThis.ReadableStream) {
     }
   } catch (error) {
     // fallback to polyfill implementation
-    Object.assign(globalThis, __webpack_require__(20))
+    Object.assign(globalThis, __webpack_require__(19))
   }
 }
 
 try {
   // Don't use node: prefix for this, require+node: is not supported until node v14.14
   // Only `import()` can use prefix in 12.20 and later
-  const { Blob } = __webpack_require__(21)
+  const { Blob } = __webpack_require__(20)
   if (Blob && !Blob.prototype.stream) {
     Blob.prototype.stream = function name (params) {
       let position = 0
@@ -1793,21 +2022,21 @@ try {
 
 
 /***/ }),
-/* 18 */
+/* 17 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:process");
 
 /***/ }),
-/* 19 */
+/* 18 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:stream/web");
 
 /***/ }),
-/* 20 */
+/* 19 */
 /***/ (function(__unused_webpack_module, exports) {
 
 /**
@@ -6549,14 +6778,14 @@ module.exports = require("node:stream/web");
 
 
 /***/ }),
-/* 21 */
+/* 20 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("buffer");
 
 /***/ }),
-/* 22 */
+/* 21 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -6566,8 +6795,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   FormData: () => (/* binding */ FormData),
 /* harmony export */   formDataToBlob: () => (/* binding */ formDataToBlob)
 /* harmony export */ });
-/* harmony import */ var fetch_blob__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(16);
-/* harmony import */ var fetch_blob_file_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(23);
+/* harmony import */ var fetch_blob__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(15);
+/* harmony import */ var fetch_blob_file_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(22);
 /*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
 
 
@@ -6611,7 +6840,7 @@ return new B(c,{type:"multipart/form-data; boundary="+b})}
 
 
 /***/ }),
-/* 23 */
+/* 22 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -6620,7 +6849,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   File: () => (/* binding */ File),
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(16);
+/* harmony import */ var _index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(15);
 
 
 const _File = class File extends _index_js__WEBPACK_IMPORTED_MODULE_0__["default"] {
@@ -6673,7 +6902,7 @@ const File = _File
 
 
 /***/ }),
-/* 24 */
+/* 23 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -6681,7 +6910,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   FetchError: () => (/* binding */ FetchError)
 /* harmony export */ });
-/* harmony import */ var _base_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(25);
+/* harmony import */ var _base_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(24);
 
 
 
@@ -6711,7 +6940,7 @@ class FetchError extends _base_js__WEBPACK_IMPORTED_MODULE_0__.FetchBaseError {
 
 
 /***/ }),
-/* 25 */
+/* 24 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -6739,7 +6968,7 @@ class FetchBaseError extends Error {
 
 
 /***/ }),
-/* 26 */
+/* 25 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -6841,7 +7070,7 @@ const isSameProtocol = (destination, original) => {
 
 
 /***/ }),
-/* 27 */
+/* 26 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -6849,9 +7078,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ Response)
 /* harmony export */ });
-/* harmony import */ var _headers_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(28);
-/* harmony import */ var _body_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(14);
-/* harmony import */ var _utils_is_redirect_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(29);
+/* harmony import */ var _headers_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(27);
+/* harmony import */ var _body_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(13);
+/* harmony import */ var _utils_is_redirect_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(28);
 /**
  * Response.js
  *
@@ -7015,7 +7244,7 @@ Object.defineProperties(Response.prototype, {
 
 
 /***/ }),
-/* 28 */
+/* 27 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -7024,8 +7253,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (/* binding */ Headers),
 /* harmony export */   fromRawHeaders: () => (/* binding */ fromRawHeaders)
 /* harmony export */ });
-/* harmony import */ var node_util__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(15);
-/* harmony import */ var node_http__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(8);
+/* harmony import */ var node_util__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(14);
+/* harmony import */ var node_http__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(7);
 /**
  * Headers.js
  *
@@ -7296,7 +7525,7 @@ function fromRawHeaders(headers = []) {
 
 
 /***/ }),
-/* 29 */
+/* 28 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -7318,7 +7547,7 @@ const isRedirect = code => {
 
 
 /***/ }),
-/* 30 */
+/* 29 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -7327,13 +7556,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (/* binding */ Request),
 /* harmony export */   getNodeRequestOptions: () => (/* binding */ getNodeRequestOptions)
 /* harmony export */ });
-/* harmony import */ var node_url__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(31);
-/* harmony import */ var node_util__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(15);
-/* harmony import */ var _headers_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(28);
-/* harmony import */ var _body_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(14);
-/* harmony import */ var _utils_is_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(26);
-/* harmony import */ var _utils_get_search_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(32);
-/* harmony import */ var _utils_referrer_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(33);
+/* harmony import */ var node_url__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(30);
+/* harmony import */ var node_util__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(14);
+/* harmony import */ var _headers_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(27);
+/* harmony import */ var _body_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(13);
+/* harmony import */ var _utils_is_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(25);
+/* harmony import */ var _utils_get_search_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(31);
+/* harmony import */ var _utils_referrer_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(32);
 /**
  * Request.js
  *
@@ -7648,14 +7877,14 @@ const getNodeRequestOptions = request => {
 
 
 /***/ }),
-/* 31 */
+/* 30 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:url");
 
 /***/ }),
-/* 32 */
+/* 31 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -7675,7 +7904,7 @@ const getSearch = parsedURL => {
 
 
 /***/ }),
-/* 33 */
+/* 32 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -7690,7 +7919,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   stripURLForUseAsAReferrer: () => (/* binding */ stripURLForUseAsAReferrer),
 /* harmony export */   validateReferrerPolicy: () => (/* binding */ validateReferrerPolicy)
 /* harmony export */ });
-/* harmony import */ var node_net__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(34);
+/* harmony import */ var node_net__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(33);
 
 
 /**
@@ -8034,14 +8263,14 @@ function parseReferrerPolicyFromHeader(headers) {
 
 
 /***/ }),
-/* 34 */
+/* 33 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:net");
 
 /***/ }),
-/* 35 */
+/* 34 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -8049,7 +8278,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   AbortError: () => (/* binding */ AbortError)
 /* harmony export */ });
-/* harmony import */ var _base_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(25);
+/* harmony import */ var _base_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(24);
 
 
 /**
@@ -8063,7 +8292,7 @@ class AbortError extends _base_js__WEBPACK_IMPORTED_MODULE_0__.FetchBaseError {
 
 
 /***/ }),
-/* 36 */
+/* 35 */
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -8077,11 +8306,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fileFrom: () => (/* binding */ fileFrom),
 /* harmony export */   fileFromSync: () => (/* binding */ fileFromSync)
 /* harmony export */ });
-/* harmony import */ var node_fs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(37);
-/* harmony import */ var node_path__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(38);
-/* harmony import */ var node_domexception__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(39);
-/* harmony import */ var _file_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(23);
-/* harmony import */ var _index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(16);
+/* harmony import */ var node_fs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(36);
+/* harmony import */ var node_path__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(37);
+/* harmony import */ var node_domexception__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(38);
+/* harmony import */ var _file_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(22);
+/* harmony import */ var _index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(15);
 
 
 
@@ -8185,28 +8414,28 @@ class BlobDataItem {
 
 
 /***/ }),
-/* 37 */
+/* 36 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:fs");
 
 /***/ }),
-/* 38 */
+/* 37 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:path");
 
 /***/ }),
-/* 39 */
+/* 38 */
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 /*! node-domexception. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
 
 if (!globalThis.DOMException) {
   try {
-    const { MessageChannel } = __webpack_require__(40),
+    const { MessageChannel } = __webpack_require__(39),
     port = new MessageChannel().port1,
     ab = new ArrayBuffer()
     port.postMessage(ab, [ab, ab])
@@ -8221,11 +8450,146 @@ module.exports = globalThis.DOMException
 
 
 /***/ }),
-/* 40 */
+/* 39 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("worker_threads");
+
+/***/ }),
+/* 40 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TextProcessor = void 0;
+const vscode = __importStar(__webpack_require__(3));
+const SelectionManager_1 = __webpack_require__(41);
+class TextProcessor {
+    constructor() {
+        this.selectionManager = new SelectionManager_1.SelectionManager();
+    }
+    captureEditorText() {
+        const selectionResult = this.selectionManager.detectSelection();
+        if (!selectionResult.isValid) {
+            return {
+                success: false,
+                error: selectionResult.error
+            };
+        }
+        return {
+            success: true,
+            text: selectionResult.selectionInfo.text,
+            selectionInfo: selectionResult.selectionInfo
+        };
+    }
+    async replaceEditorText(newText, selectionRange) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return { success: false, error: 'No active editor found' };
+        }
+        const document = activeEditor.document;
+        const selection = activeEditor.selection;
+        try {
+            await activeEditor.edit(editBuilder => {
+                if (selectionRange) {
+                    // Replace specific range
+                    const startPosition = document.positionAt(selectionRange.start);
+                    const endPosition = document.positionAt(selectionRange.end);
+                    const range = new vscode.Range(startPosition, endPosition);
+                    editBuilder.replace(range, newText);
+                }
+                else if (!selection.isEmpty) {
+                    // Replace current selection
+                    editBuilder.replace(selection, newText);
+                }
+                else {
+                    // Replace entire document
+                    const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
+                    editBuilder.replace(fullRange, newText);
+                }
+            });
+            return { success: true };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to replace text'
+            };
+        }
+    }
+    getEditorState() {
+        return this.selectionManager.getEditorState();
+    }
+    async createUndoPoint(description) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+            // VSCode automatically creates undo points for edit operations
+            // This method is here for potential future enhancements
+            await vscode.commands.executeCommand('workbench.action.files.save');
+        }
+    }
+    /**
+     * Processes text based on selection state - returns only selected text if selection exists
+     */
+    processTextForCorrection() {
+        const result = this.captureEditorText();
+        if (!result.success) {
+            return result;
+        }
+        return {
+            success: true,
+            text: result.text,
+            isSelection: result.selectionInfo?.hasSelection || false,
+            selectionRange: result.selectionInfo?.range
+        };
+    }
+    /**
+     * Applies corrections to the appropriate text portion (selection or full document)
+     */
+    async applyCorrectionToSelection(correctedText, originalSelectionRange) {
+        if (originalSelectionRange) {
+            // Apply correction to specific range
+            return await this.selectionManager.replaceTextInRange(originalSelectionRange, correctedText);
+        }
+        else {
+            // Apply correction to current selection or full document
+            return await this.replaceEditorText(correctedText);
+        }
+    }
+    /**
+     * Validates that a selection range is still valid in the current document
+     */
+    validateSelectionRange(range) {
+        return this.selectionManager.validateSelectionRange(range);
+    }
+}
+exports.TextProcessor = TextProcessor;
+
 
 /***/ }),
 /* 41 */
@@ -8257,47 +8621,119 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TextProcessor = void 0;
+exports.SelectionManager = void 0;
 const vscode = __importStar(__webpack_require__(3));
-class TextProcessor {
-    captureEditorText() {
+class SelectionManager {
+    /**
+     * Detects and analyzes the current text selection in the active editor
+     */
+    detectSelection() {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor) {
-            return { success: false, error: 'No active editor found' };
+            return {
+                isValid: false,
+                error: 'No active editor found'
+            };
         }
         const document = activeEditor.document;
         const selection = activeEditor.selection;
-        // If there's a selection, use that; otherwise use the entire document
+        const hasSelection = !selection.isEmpty;
         let text;
-        if (!selection.isEmpty) {
+        let range;
+        let position;
+        if (hasSelection) {
             text = document.getText(selection);
+            const startOffset = document.offsetAt(selection.start);
+            const endOffset = document.offsetAt(selection.end);
+            range = {
+                start: startOffset,
+                end: endOffset
+            };
+            position = {
+                startLine: selection.start.line,
+                startCharacter: selection.start.character,
+                endLine: selection.end.line,
+                endCharacter: selection.end.character
+            };
         }
         else {
             text = document.getText();
+            // No range or position for full document
         }
         if (text.trim() === '') {
-            return { success: false, error: 'No text to process' };
+            return {
+                isValid: false,
+                error: 'No text to process'
+            };
         }
-        return { success: true, text };
+        const selectionInfo = {
+            hasSelection,
+            text,
+            range,
+            position
+        };
+        return {
+            isValid: true,
+            selectionInfo
+        };
     }
-    async replaceEditorText(newText) {
+    /**
+     * Validates a selection range against the current document
+     */
+    validateSelectionRange(range) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return false;
+        }
+        const document = activeEditor.document;
+        const documentLength = document.getText().length;
+        // Validate range bounds
+        if (range.start < 0 || range.end < 0) {
+            return false;
+        }
+        if (range.start > documentLength || range.end > documentLength) {
+            return false;
+        }
+        if (range.start > range.end) {
+            return false;
+        }
+        return true;
+    }
+    /**
+     * Gets text from a specific range in the active document
+     */
+    getTextFromRange(range) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return null;
+        }
+        if (!this.validateSelectionRange(range)) {
+            return null;
+        }
+        const document = activeEditor.document;
+        const startPosition = document.positionAt(range.start);
+        const endPosition = document.positionAt(range.end);
+        const vscodeRange = new vscode.Range(startPosition, endPosition);
+        return document.getText(vscodeRange);
+    }
+    /**
+     * Replaces text in a specific range of the active document
+     */
+    async replaceTextInRange(range, newText) {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor) {
             return { success: false, error: 'No active editor found' };
         }
+        if (!this.validateSelectionRange(range)) {
+            return { success: false, error: 'Invalid selection range' };
+        }
         const document = activeEditor.document;
-        const selection = activeEditor.selection;
+        const startPosition = document.positionAt(range.start);
+        const endPosition = document.positionAt(range.end);
+        const vscodeRange = new vscode.Range(startPosition, endPosition);
         try {
             await activeEditor.edit(editBuilder => {
-                if (!selection.isEmpty) {
-                    // Replace selected text
-                    editBuilder.replace(selection, newText);
-                }
-                else {
-                    // Replace entire document
-                    const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
-                    editBuilder.replace(fullRange, newText);
-                }
+                editBuilder.replace(vscodeRange, newText);
             });
             return { success: true };
         }
@@ -8308,6 +8744,9 @@ class TextProcessor {
             };
         }
     }
+    /**
+     * Gets the current editor state including selection information
+     */
     getEditorState() {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor) {
@@ -8318,23 +8757,22 @@ class TextProcessor {
                 documentLength: 0
             };
         }
+        const hasSelection = !activeEditor.selection.isEmpty;
+        let selectionLength;
+        if (hasSelection) {
+            const selectionText = activeEditor.document.getText(activeEditor.selection);
+            selectionLength = selectionText.length;
+        }
         return {
             hasActiveEditor: true,
-            hasSelection: !activeEditor.selection.isEmpty,
+            hasSelection,
             isReadOnly: activeEditor.document.uri.scheme === 'untitled' ? false : activeEditor.document.isUntitled,
-            documentLength: activeEditor.document.getText().length
+            documentLength: activeEditor.document.getText().length,
+            selectionLength
         };
     }
-    async createUndoPoint(description) {
-        const activeEditor = vscode.window.activeTextEditor;
-        if (activeEditor) {
-            // VSCode automatically creates undo points for edit operations
-            // This method is here for potential future enhancements
-            await vscode.commands.executeCommand('workbench.action.files.save');
-        }
-    }
 }
-exports.TextProcessor = TextProcessor;
+exports.SelectionManager = SelectionManager;
 
 
 /***/ }),
@@ -8348,7 +8786,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.LLMApiClient = void 0;
-const node_fetch_1 = __importDefault(__webpack_require__(7));
+const node_fetch_1 = __importDefault(__webpack_require__(6));
 const RequestBuilder_1 = __webpack_require__(43);
 const ResponseParser_1 = __webpack_require__(44);
 class LLMApiClient {
@@ -8403,7 +8841,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.RequestBuilder = void 0;
 class RequestBuilder {
     buildCorrectionRequest(correctionRequest, maxTokens, temperature) {
-        const systemPrompt = this.buildSystemPrompt(correctionRequest.correctionType);
+        const systemPrompt = this.buildSystemPrompt(correctionRequest.promptName);
         const userPrompt = this.buildUserPrompt(correctionRequest.prompt, correctionRequest.text);
         return {
             model: 'gpt-3.5-turbo',
@@ -15377,117 +15815,41 @@ exports.correctionResponseSchema = {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PromptManager = void 0;
-const CorrectionType_1 = __webpack_require__(4);
-const ConfigurationProvider_1 = __webpack_require__(6);
+const ConfigurationProvider_1 = __webpack_require__(5);
 class PromptManager {
     constructor() {
-        this.defaultPrompts = new Map();
         this.configProvider = new ConfigurationProvider_1.ConfigurationProvider();
-        this.initializeDefaultPrompts();
     }
-    initializeDefaultPrompts() {
-        this.defaultPrompts = new Map([
-            [CorrectionType_1.CorrectionType.GRAMMAR,
-                'Please correct any grammatical errors in the following text. Focus on:\n' +
-                    '- Subject-verb agreement\n' +
-                    '- Verb tenses and consistency\n' +
-                    '- Punctuation and capitalization\n' +
-                    '- Sentence structure\n' +
-                    'Preserve the original meaning and style.'
-            ],
-            [CorrectionType_1.CorrectionType.STYLE,
-                'Please improve the writing style of the following text. Focus on:\n' +
-                    '- Word choice and vocabulary\n' +
-                    '- Sentence variety and flow\n' +
-                    '- Clarity and conciseness\n' +
-                    '- Professional tone\n' +
-                    'Maintain the author\'s voice while enhancing readability.'
-            ],
-            [CorrectionType_1.CorrectionType.CLARITY,
-                'Please improve the clarity and readability of the following text. Focus on:\n' +
-                    '- Simplifying complex sentences\n' +
-                    '- Removing ambiguity\n' +
-                    '- Improving logical flow\n' +
-                    '- Making concepts more understandable\n' +
-                    'Ensure the message is clear and accessible.'
-            ],
-            [CorrectionType_1.CorrectionType.TONE,
-                'Please adjust the tone of the following text to be more appropriate. Focus on:\n' +
-                    '- Consistency in formality level\n' +
-                    '- Appropriate voice for the audience\n' +
-                    '- Professional yet engaging language\n' +
-                    '- Removing inappropriate or inconsistent tone\n' +
-                    'Maintain the core message while improving tone.'
-            ]
-        ]);
+    getPromptByName(name) {
+        const namePromptPair = this.getNamePromptPair(name);
+        return namePromptPair?.prompt;
     }
-    getPrompt(correctionType, customPromptName) {
-        // If a custom prompt name is provided, try to find it
-        if (customPromptName) {
-            const customPrompt = this.getCustomPrompt(customPromptName);
-            if (customPrompt) {
-                return customPrompt.prompt;
-            }
-        }
-        // Get configured prompt from settings first, fallback to built-in default
-        const defaultPrompts = this.configProvider.getDefaultPromptConfiguration();
-        return defaultPrompts[correctionType] || this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
+    getPromptById(id) {
+        const namePromptPair = this.getNamePromptPairById(id);
+        return namePromptPair?.prompt;
     }
-    getCustomPrompt(name) {
-        const config = this.configProvider.getConfiguration();
-        return config.customPrompts.find(prompt => prompt.name === name);
+    getNamePromptPair(name) {
+        return this.configProvider.getNamePromptPairByName(name);
     }
-    async addCustomPrompt(prompt) {
-        try {
-            const config = this.configProvider.getConfiguration();
-            // Check if prompt with same name already exists
-            const existingIndex = config.customPrompts.findIndex(p => p.name === prompt.name);
-            if (existingIndex >= 0) {
-                // Update existing prompt
-                config.customPrompts[existingIndex] = prompt;
-            }
-            else {
-                // Add new prompt
-                config.customPrompts.push(prompt);
-            }
-            await this.configProvider.updateConfiguration('customPrompts', config.customPrompts);
-            return { success: true };
-        }
-        catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to save custom prompt'
-            };
-        }
+    getNamePromptPairById(id) {
+        return this.configProvider.getNamePromptPairById(id);
     }
-    async removeCustomPrompt(name) {
-        try {
-            const config = this.configProvider.getConfiguration();
-            const filteredPrompts = config.customPrompts.filter(prompt => prompt.name !== name);
-            if (filteredPrompts.length === config.customPrompts.length) {
-                return { success: false, error: 'Custom prompt not found' };
-            }
-            await this.configProvider.updateConfiguration('customPrompts', filteredPrompts);
-            return { success: true };
-        }
-        catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to remove custom prompt'
-            };
-        }
+    async createNamePromptPair(namePromptPair) {
+        return await this.configProvider.createNamePromptPair(namePromptPair);
     }
-    getAllCustomPrompts() {
-        const config = this.configProvider.getConfiguration();
-        return config.customPrompts;
+    async updateNamePromptPair(id, updates) {
+        return await this.configProvider.updateNamePromptPair(id, updates);
     }
-    getDefaultPrompts() {
-        return Array.from(this.defaultPrompts.entries()).map(([type, prompt]) => ({
-            type,
-            prompt
-        }));
+    async deleteNamePromptPair(id) {
+        return await this.configProvider.deleteNamePromptPair(id);
     }
-    validatePrompt(prompt) {
+    getAllNamePromptPairs() {
+        return this.configProvider.getNamePromptPairs();
+    }
+    getDefaultNamePromptPairs() {
+        return this.configProvider.getDefaultNamePromptPairs();
+    }
+    validateNamePromptPair(prompt) {
         const errors = [];
         if (!prompt.name || prompt.name.trim() === '') {
             errors.push('Prompt name is required');
@@ -15495,30 +15857,23 @@ class PromptManager {
         if (!prompt.prompt || prompt.prompt.trim() === '') {
             errors.push('Prompt content is required');
         }
-        if (!prompt.correctionType || prompt.correctionType.trim() === '') {
-            errors.push('Correction type is required');
-        }
         // Check if name contains only valid characters
         if (prompt.name && !/^[a-zA-Z0-9\s\-_]+$/.test(prompt.name)) {
             errors.push('Prompt name can only contain letters, numbers, spaces, hyphens, and underscores');
+        }
+        if (prompt.name && prompt.name.length > 50) {
+            errors.push('Prompt name cannot exceed 50 characters');
+        }
+        if (prompt.prompt && prompt.prompt.length > 2000) {
+            errors.push('Prompt content cannot exceed 2000 characters');
+        }
+        if (prompt.prompt && prompt.prompt.trim().length < 10) {
+            errors.push('Prompt content must be at least 10 characters long');
         }
         return {
             isValid: errors.length === 0,
             errors
         };
-    }
-    async updateDefaultPrompt(correctionType, prompt) {
-        return await this.configProvider.updateDefaultPrompt(correctionType, prompt);
-    }
-    async resetDefaultPrompt(correctionType) {
-        return await this.configProvider.resetDefaultPrompt(correctionType);
-    }
-    getConfiguredDefaultPrompt(correctionType) {
-        const defaultPrompts = this.configProvider.getDefaultPromptConfiguration();
-        return defaultPrompts[correctionType] || this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
-    }
-    getBuiltInDefaultPrompt(correctionType) {
-        return this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
     }
 }
 exports.PromptManager = PromptManager;

@@ -19,4 +19,7 @@ __exportStar(require("./CorrectionResponse"), exports);
 __exportStar(require("./TextChange"), exports);
 __exportStar(require("./CorrectionType"), exports);
 __exportStar(require("./ExtensionConfiguration"), exports);
+__exportStar(require("./ChatMessage"), exports);
+__exportStar(require("./ConversationHistory"), exports);
+__exportStar(require("./NamePromptPair"), exports);
 //# sourceMappingURL=index.js.map

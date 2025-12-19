@@ -1,16 +1,20 @@
 import * as fc from 'fast-check';
-import { CorrectionType } from '../models/CorrectionType';
 import { CorrectionRequest } from '../models/CorrectionRequest';
 import { CorrectionResponse } from '../models/CorrectionResponse';
-import { ExtensionConfiguration, DefaultPromptConfiguration } from '../models/ExtensionConfiguration';
+import { ExtensionConfiguration } from '../models/ExtensionConfiguration';
+import { NamePromptPair } from '../models/NamePromptPair';
 
-// Helper function to create default prompts for tests
-const createDefaultPrompts = (): DefaultPromptConfiguration => ({
-    grammar: 'Grammar correction prompt',
-    style: 'Style improvement prompt',
-    clarity: 'Clarity enhancement prompt',
-    tone: 'Tone adjustment prompt'
-});
+// Helper function to create sample prompts for tests
+const createSamplePrompts = (): NamePromptPair[] => ([
+    {
+        id: '1',
+        name: 'Grammar Check',
+        prompt: 'Fix grammar and spelling errors',
+        description: 'Basic grammar correction',
+        createdAt: new Date(),
+        updatedAt: new Date()
+    }
+]);
 
 // Create simplified workflow orchestrator for testing
 class WorkflowOrchestrator {
@@ -46,7 +50,7 @@ class WorkflowOrchestrator {
         }
     }
 
-    async correctionWorkflow(correctionType: CorrectionType, text: string): Promise<{ success: boolean; response?: CorrectionResponse; error?: string }> {
+    async correctionWorkflow(correctionType: string, text: string): Promise<{ success: boolean; response?: CorrectionResponse; error?: string }> {
         try {
             if (!this.isActivated) {
                 return { success: false, error: 'Extension not activated' };
@@ -110,8 +114,7 @@ describe('Integration Tests', () => {
                 model: 'gpt-3.5-turbo',
                 maxTokens: 1000,
                 temperature: 0.3,
-                customPrompts: [],
-                defaultPrompts: createDefaultPrompts()
+                customPrompts: createSamplePrompts()
             };
 
             const result = await workflow.configurationManagementWorkflow(config);
@@ -126,8 +129,7 @@ describe('Integration Tests', () => {
                 model: '',
                 maxTokens: 1000,
                 temperature: 0.3,
-                customPrompts: [],
-                defaultPrompts: createDefaultPrompts()
+                customPrompts: []
             };
 
             const result = await workflow.configurationManagementWorkflow(invalidConfig);
@@ -145,15 +147,14 @@ describe('Integration Tests', () => {
                 model: 'gpt-3.5-turbo',
                 maxTokens: 1000,
                 temperature: 0.3,
-                customPrompts: [],
-                defaultPrompts: createDefaultPrompts()
+                customPrompts: createSamplePrompts()
             };
             await workflow.configurationManagementWorkflow(config);
         });
 
         test('should perform grammar correction', async () => {
             const text = 'This are a test sentence.';
-            const result = await workflow.correctionWorkflow(CorrectionType.GRAMMAR, text);
+            const result = await workflow.correctionWorkflow('grammar', text);
             
             expect(result.success).toBe(true);
             expect(result.response).toBeDefined();
@@ -163,10 +164,10 @@ describe('Integration Tests', () => {
 
         test('should handle all correction types', async () => {
             const correctionTypes = [
-                CorrectionType.GRAMMAR,
-                CorrectionType.STYLE,
-                CorrectionType.CLARITY,
-                CorrectionType.TONE
+                'grammar',
+                'style',
+                'clarity',
+                'tone'
             ];
 
             for (const type of correctionTypes) {
@@ -178,7 +179,7 @@ describe('Integration Tests', () => {
 
         test('should fail without activation', async () => {
             const newWorkflow = new WorkflowOrchestrator();
-            const result = await newWorkflow.correctionWorkflow(CorrectionType.GRAMMAR, 'Test');
+            const result = await newWorkflow.correctionWorkflow('grammar', 'Test');
             
             expect(result.success).toBe(false);
             expect(result.error).toContain('not activated');
@@ -188,7 +189,7 @@ describe('Integration Tests', () => {
             const newWorkflow = new WorkflowOrchestrator();
             await newWorkflow.activateExtension();
             
-            const result = await newWorkflow.correctionWorkflow(CorrectionType.GRAMMAR, 'Test');
+            const result = await newWorkflow.correctionWorkflow('grammar', 'Test');
             expect(result.success).toBe(false);
             expect(result.error).toContain('configuration');
         });
@@ -198,10 +199,10 @@ describe('Integration Tests', () => {
         test('should handle various text inputs for correction', () => {
             const textArb = fc.string({ minLength: 1, maxLength: 1000 });
             const correctionTypeArb = fc.constantFrom(
-                CorrectionType.GRAMMAR,
-                CorrectionType.STYLE,
-                CorrectionType.CLARITY,
-                CorrectionType.TONE
+                'grammar',
+                'style',
+                'clarity',
+                'tone'
             );
 
             fc.assert(
@@ -213,8 +214,7 @@ describe('Integration Tests', () => {
                         model: 'gpt-3.5-turbo',
                         maxTokens: 1000,
                         temperature: 0.3,
-                        customPrompts: [],
-                        defaultPrompts: createDefaultPrompts()
+                        customPrompts: createSamplePrompts()
                     };
                     await workflow.configurationManagementWorkflow(config);
 

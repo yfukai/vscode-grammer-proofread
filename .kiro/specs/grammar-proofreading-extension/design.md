@@ -2,9 +2,9 @@
 
 ## Overview
 
-The Grammar Proofreading Extension is a VSCode extension that integrates Large Language Model capabilities directly into the editor workflow. The extension provides a seamless interface for grammar correction and proofreading through predefined prompts, leveraging OpenAI-compatible APIs to deliver intelligent text improvements with explanatory feedback.
+The Grammar Proofreading Extension is a VSCode extension that integrates Large Language Model capabilities directly into the editor workflow through a chat-style interface. The extension provides a conversational interface for grammar correction and proofreading through user-configurable name-prompt pairs, leveraging OpenAI-compatible APIs to deliver intelligent text improvements with explanatory feedback displayed in a chat widget.
 
-The extension follows VSCode's extension architecture patterns, utilizing the Extension API for UI integration, workspace management, and configuration handling. The design emphasizes user experience through non-intrusive corrections, clear feedback mechanisms, and robust error handling.
+The extension follows VSCode's extension architecture patterns, utilizing the Extension API for UI integration, workspace management, and configuration handling. The design emphasizes user experience through a chat-style interface, support for text selection processing, and robust error handling with conversational feedback.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ The extension follows a layered architecture pattern:
 ┌─────────────────────────────────────┐
 │           VSCode Extension          │
 ├─────────────────────────────────────┤
-│  UI Layer (Commands & Buttons)      │
+│  UI Layer (Chat Widget & Buttons)   │
 ├─────────────────────────────────────┤
 │  Service Layer (Correction Logic)   │
 ├─────────────────────────────────────┤
@@ -38,13 +38,17 @@ The extension follows a layered architecture pattern:
 - **StatusBarManager**: Manages extension status indicators
 
 ### UI Components
-- **CorrectionButtonProvider**: Creates and manages correction buttons in the editor
+- **ChatWidget**: Main chat-style interface panel for displaying correction buttons and LLM responses
+- **CorrectionButtonProvider**: Creates and manages correction buttons within the chat widget
+- **MessageRenderer**: Handles rendering of chat messages, user requests, and LLM responses
+- **ConversationManager**: Manages chat history and message threading
 - **NotificationManager**: Handles user notifications and explanations
 - **ProgressIndicator**: Shows correction progress during API calls
 
 ### Core Services
 - **CorrectionService**: Orchestrates the correction workflow
-- **TextProcessor**: Handles text extraction and replacement in editors
+- **TextProcessor**: Handles text extraction (full document or selection) and replacement in editors
+- **SelectionManager**: Manages text selection detection and processing
 - **ValidationService**: Validates API responses against JSON schema
 
 ### API Integration
@@ -54,8 +58,8 @@ The extension follows a layered architecture pattern:
 
 ### Configuration Management
 - **ConfigurationProvider**: Manages extension settings and API configuration
-- **PromptManager**: Handles predefined and custom correction prompts
-- **SettingsProvider**: Manages VSCode settings integration for prompt configuration
+- **PromptManager**: Handles user-configurable name-prompt pairs with CRUD operations
+- **SettingsProvider**: Manages VSCode settings integration for custom prompt configuration
 
 ## Data Models
 
@@ -64,7 +68,12 @@ The extension follows a layered architecture pattern:
 interface CorrectionRequest {
   text: string;
   prompt: string;
-  correctionType: CorrectionType;
+  promptName: string;
+  isSelection: boolean;
+  selectionRange?: {
+    start: number;
+    end: number;
+  };
   apiEndpoint: string;
   apiKey: string;
 }
@@ -93,14 +102,30 @@ interface TextChange {
 }
 ```
 
-### CorrectionType
+### ChatMessage
 ```typescript
-enum CorrectionType {
-  GRAMMAR = "grammar",
-  STYLE = "style", 
-  CLARITY = "clarity",
-  TONE = "tone",
-  CUSTOM = "custom"
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  promptName?: string;
+  isSelection?: boolean;
+  selectionRange?: {
+    start: number;
+    end: number;
+  };
+  actions?: MessageAction[];
+}
+```
+
+### MessageAction
+```typescript
+interface MessageAction {
+  id: string;
+  label: string;
+  type: 'apply' | 'dismiss' | 'copy';
+  data?: any;
 }
 ```
 
@@ -112,28 +137,29 @@ interface ExtensionConfiguration {
   model: string;
   maxTokens: number;
   temperature: number;
-  customPrompts: CustomPrompt[];
-  defaultPrompts: DefaultPromptConfiguration;
+  customPrompts: NamePromptPair[];
 }
 ```
 
-### DefaultPromptConfiguration
+### NamePromptPair
 ```typescript
-interface DefaultPromptConfiguration {
-  grammar: string;
-  style: string;
-  clarity: string;
-  tone: string;
-}
-```
-
-### CustomPrompt
-```typescript
-interface CustomPrompt {
+interface NamePromptPair {
+  id: string;
   name: string;
   prompt: string;
-  correctionType: string;
   description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### ConversationHistory
+```typescript
+interface ConversationHistory {
+  messages: ChatMessage[];
+  sessionId: string;
+  createdAt: Date;
+  lastActivity: Date;
 }
 ```
 
@@ -141,21 +167,21 @@ interface CustomPrompt {
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-Property 1: Button click captures editor text
-*For any* correction button click with an active editor, the extension should capture the current document text from that editor
-**Validates: Requirements 1.2**
+Property 1: Button click captures correct text based on selection state
+*For any* correction button click with an active editor, the extension should capture the selected text if a selection exists, otherwise capture the entire document text
+**Validates: Requirements 1.2, 5.1, 5.2**
 
-Property 2: Text capture triggers API request
-*For any* captured document text and correction type, the extension should send the text with the associated prompt to the configured LLM API
+Property 2: Text capture triggers API request with correct prompt
+*For any* captured text and prompt name, the extension should send the text with the associated prompt to the configured LLM API
 **Validates: Requirements 1.3**
 
 Property 3: API response validation occurs
 *For any* LLM API response, the extension should validate the response structure against the predefined JSON schema
 **Validates: Requirements 1.4, 4.1**
 
-Property 4: Valid responses trigger text replacement
-*For any* successfully validated API response, the extension should replace the original document text with the corrected version
-**Validates: Requirements 1.5**
+Property 4: Valid responses display in chat widget with actions
+*For any* successfully validated API response, the extension should display the response as a message in the chat widget with action buttons to apply or dismiss corrections
+**Validates: Requirements 1.5, 1.6, 3.2, 7.3**
 
 Property 5: Invalid credentials prevent API calls
 *For any* invalid API credentials, the extension should display error messages and prevent API calls from being made
@@ -173,87 +199,106 @@ Property 8: Correction responses extract required data
 *For any* valid correction response from the LLM API, the extension should extract both corrected text and explanation
 **Validates: Requirements 3.1**
 
-Property 9: Text replacement shows explanations
-*For any* text replacement operation, the extension should display the correction explanation to the user
-**Validates: Requirements 3.2**
-
-Property 10: Multiple corrections provide individual explanations
-*For any* correction response with multiple changes, the extension should provide explanations for each significant change
+Property 9: Multiple corrections provide individual explanations
+*For any* correction response with multiple changes, the extension should provide explanations for each significant change in the chat widget message
 **Validates: Requirements 3.3**
 
-Property 11: Validation failures are logged and reported
+Property 10: Validation failures are logged and reported
 *For any* response validation failure, the extension should log the error and display a user-friendly message
 **Validates: Requirements 4.2**
 
-Property 12: Valid responses proceed to replacement
-*For any* response containing required fields (corrected text and explanation), the extension should proceed with text replacement
+Property 11: Valid responses proceed to processing
+*For any* response containing required fields (corrected text and explanation), the extension should proceed with displaying the correction in the chat widget
 **Validates: Requirements 4.3**
 
-Property 13: Missing fields cause response rejection
+Property 12: Missing fields cause response rejection
 *For any* response missing required fields, the extension should reject the response and maintain the original text
 **Validates: Requirements 4.4**
 
-Property 14: Malformed JSON is handled gracefully
+Property 13: Malformed JSON is handled gracefully
 *For any* malformed JSON response, the extension should handle the parsing error gracefully without crashing
 **Validates: Requirements 4.5**
 
-Property 15: Correction buttons use associated prompts
-*For any* correction button click, the extension should use the predefined prompt associated with that specific correction type
-**Validates: Requirements 5.2**
-
-Property 16: API requests combine text and prompts
-*For any* API request, the extension should properly combine the document text with the selected correction prompt
+Property 14: Selection processing sends only selected text
+*For any* text selection and correction request, the extension should send only the selected portion to the LLM API
 **Validates: Requirements 5.3**
 
-Property 17: Correction types have clear labels
-*For any* available correction type, the extension should display a clearly labeled button that indicates its purpose
+Property 15: Selection corrections replace only selected portion
+*For any* correction applied to selected text, the extension should replace only the selected portion in the editor
 **Validates: Requirements 5.4**
 
-Property 18: Prompt customization is supported
-*For any* prompt configuration operation, the extension should allow users to customize existing prompts or add new correction prompts
+Property 16: Selection corrections indicate processed portion
+*For any* selected text correction displayed in the chat widget, the message should clearly indicate which portion of text was processed
 **Validates: Requirements 5.5**
 
-Property 19: Settings modifications persist correctly
-*For any* default prompt modification in VSCode settings, the extension should persist the updated prompt value and retrieve it correctly
+Property 17: Name-prompt pair creation adds button
+*For any* new name-prompt pair created in settings, the extension should add a corresponding correction button to the chat widget
 **Validates: Requirements 6.2**
 
-Property 20: Configured prompts are used when available
-*For any* correction button click with a configured prompt, the extension should use the configured prompt from settings instead of the built-in default
+Property 18: Name-prompt pair modification updates button
+*For any* existing name-prompt pair modification, the extension should update the button label and associated prompt
 **Validates: Requirements 6.3**
 
-Property 21: Fallback to default prompts works
-*For any* correction type without a custom configuration, the extension should use the built-in default prompt for that correction type
+Property 19: Name-prompt pair deletion removes button
+*For any* name-prompt pair deletion, the extension should remove the corresponding correction button from the chat widget
 **Validates: Requirements 6.4**
 
-Property 22: Prompt reset restores defaults
-*For any* prompt configuration reset operation, the extension should restore the original built-in default prompt for that correction type
-**Validates: Requirements 6.5**
+Property 20: Name-prompt configuration round-trip
+*For any* set of name-prompt pairs configured in settings, saving and reloading the chat widget should display correction buttons for all configured pairs
+**Validates: Requirements 6.5, 6.6**
 
-Property 23: Invalid prompts are validated and rejected
-*For any* invalid prompt content provided in settings, the extension should validate the prompt and display appropriate error messages
+Property 21: Invalid prompt content is validated
+*For any* invalid prompt content provided in settings, the extension should validate the input and display appropriate error messages
 **Validates: Requirements 6.7**
+
+Property 22: Duplicate names are prevented
+*For any* attempt to create a name-prompt pair with a duplicate name, the extension should prevent creation and display a conflict error message
+**Validates: Requirements 6.8**
+
+Property 23: Correction requests display in chat
+*For any* correction request made, the extension should display the user's request context in the chat widget
+**Validates: Requirements 7.2**
+
+Property 24: Conversation history is maintained
+*For any* sequence of multiple correction requests, the extension should maintain a conversation history in the chat widget
+**Validates: Requirements 7.4**
+
+Property 25: Messages are visually distinguished
+*For any* message displayed in the chat widget, the extension should clearly distinguish between user requests and LLM responses
+**Validates: Requirements 7.6**
+
+Property 26: Session history persists across widget lifecycle
+*For any* conversation history in the current session, closing and reopening the chat widget should preserve the conversation history
+**Validates: Requirements 7.7**
 
 ## VSCode Settings Integration
 
-The extension integrates with VSCode's native settings system to provide configurable default prompts:
+The extension integrates with VSCode's native settings system to provide configurable name-prompt pairs:
 
 **Settings Schema Definition:**
 - Extension contributes settings through `package.json` configuration
-- Each default prompt type (grammar, style, clarity, tone) has a dedicated setting
-- Settings include descriptions and default values for user guidance
-- Validation rules ensure prompt content meets minimum requirements
+- Custom name-prompt pairs stored as an array of objects in settings
+- Each pair includes name, prompt, description, and metadata fields
+- Validation rules ensure unique names and non-empty prompt content
 
 **Settings UI Features:**
-- Native VSCode settings interface for prompt configuration
-- Clear descriptions explaining each correction type's purpose
-- Default value restoration through settings reset functionality
+- Native VSCode settings interface for managing name-prompt pairs
+- Array-based settings UI for adding, editing, and removing pairs
+- Clear descriptions and validation for each field
 - Real-time validation with error messaging for invalid inputs
+- Duplicate name detection and prevention
 
 **Configuration Persistence:**
-- Settings are stored in VSCode's configuration system
-- Changes are automatically persisted across sessions
+- Name-prompt pairs stored in VSCode's configuration system
+- Changes automatically persisted across sessions
 - Workspace-specific overrides supported for team configurations
-- Migration support for existing custom prompt configurations
+- Migration support for upgrading from fixed prompt categories
+
+**Chat Widget Integration:**
+- Dynamic button generation based on configured name-prompt pairs
+- Real-time updates when settings change
+- Fallback to default prompts when no custom pairs are configured
+- Button labels match the configured names exactly
 
 ## Error Handling
 
@@ -301,12 +346,14 @@ The extension uses fast-check for property-based testing to verify correctness p
 - **Generator strategy**: Smart generators that create realistic text content, API responses, and configuration scenarios
 
 **Property Test Categories:**
-1. **Text Processing Properties**: Verify text capture, replacement, and preservation behaviors
+1. **Text Processing Properties**: Verify text capture (full document vs selection), replacement, and preservation behaviors
 2. **API Integration Properties**: Validate request construction and response handling
 3. **Configuration Properties**: Test settings validation and connection management
-4. **Prompt Configuration Properties**: Verify default prompt customization and persistence
-5. **Error Handling Properties**: Ensure consistent error behavior across failure scenarios
-6. **UI Interaction Properties**: Verify button behavior and user feedback mechanisms
+4. **Name-Prompt Configuration Properties**: Verify custom name-prompt pair CRUD operations and persistence
+5. **Chat Widget Properties**: Verify message display, conversation history, and UI state management
+6. **Selection Handling Properties**: Verify correct processing of selected vs full document text
+7. **Error Handling Properties**: Ensure consistent error behavior across failure scenarios
+8. **UI Interaction Properties**: Verify button behavior, action buttons, and user feedback mechanisms
 
 ### Integration Testing
 - VSCode extension host testing for UI integration

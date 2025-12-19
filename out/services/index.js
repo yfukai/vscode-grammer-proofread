@@ -23,4 +23,5 @@ __exportStar(require("./RequestBuilder"), exports);
 __exportStar(require("./ResponseParser"), exports);
 __exportStar(require("./ConfigurationProvider"), exports);
 __exportStar(require("./PromptManager"), exports);
+__exportStar(require("./SelectionManager"), exports);
 //# sourceMappingURL=index.js.map

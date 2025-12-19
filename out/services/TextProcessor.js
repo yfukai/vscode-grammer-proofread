@@ -25,28 +25,26 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TextProcessor = void 0;
 const vscode = __importStar(require("vscode"));
+const SelectionManager_1 = require("./SelectionManager");
 class TextProcessor {
-    captureEditorText() {
-        const activeEditor = vscode.window.activeTextEditor;
-        if (!activeEditor) {
-            return { success: false, error: 'No active editor found' };
-        }
-        const document = activeEditor.document;
-        const selection = activeEditor.selection;
-        // If there's a selection, use that; otherwise use the entire document
-        let text;
-        if (!selection.isEmpty) {
-            text = document.getText(selection);
-        }
-        else {
-            text = document.getText();
-        }
-        if (text.trim() === '') {
-            return { success: false, error: 'No text to process' };
-        }
-        return { success: true, text };
+    constructor() {
+        this.selectionManager = new SelectionManager_1.SelectionManager();
     }
-    async replaceEditorText(newText) {
+    captureEditorText() {
+        const selectionResult = this.selectionManager.detectSelection();
+        if (!selectionResult.isValid) {
+            return {
+                success: false,
+                error: selectionResult.error
+            };
+        }
+        return {
+            success: true,
+            text: selectionResult.selectionInfo.text,
+            selectionInfo: selectionResult.selectionInfo
+        };
+    }
+    async replaceEditorText(newText, selectionRange) {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor) {
             return { success: false, error: 'No active editor found' };
@@ -55,8 +53,15 @@ class TextProcessor {
         const selection = activeEditor.selection;
         try {
             await activeEditor.edit(editBuilder => {
-                if (!selection.isEmpty) {
-                    // Replace selected text
+                if (selectionRange) {
+                    // Replace specific range
+                    const startPosition = document.positionAt(selectionRange.start);
+                    const endPosition = document.positionAt(selectionRange.end);
+                    const range = new vscode.Range(startPosition, endPosition);
+                    editBuilder.replace(range, newText);
+                }
+                else if (!selection.isEmpty) {
+                    // Replace current selection
                     editBuilder.replace(selection, newText);
                 }
                 else {
@@ -75,21 +80,7 @@ class TextProcessor {
         }
     }
     getEditorState() {
-        const activeEditor = vscode.window.activeTextEditor;
-        if (!activeEditor) {
-            return {
-                hasActiveEditor: false,
-                hasSelection: false,
-                isReadOnly: true,
-                documentLength: 0
-            };
-        }
-        return {
-            hasActiveEditor: true,
-            hasSelection: !activeEditor.selection.isEmpty,
-            isReadOnly: activeEditor.document.uri.scheme === 'untitled' ? false : activeEditor.document.isUntitled,
-            documentLength: activeEditor.document.getText().length
-        };
+        return this.selectionManager.getEditorState();
     }
     async createUndoPoint(description) {
         const activeEditor = vscode.window.activeTextEditor;
@@ -98,6 +89,40 @@ class TextProcessor {
             // This method is here for potential future enhancements
             await vscode.commands.executeCommand('workbench.action.files.save');
         }
+    }
+    /**
+     * Processes text based on selection state - returns only selected text if selection exists
+     */
+    processTextForCorrection() {
+        const result = this.captureEditorText();
+        if (!result.success) {
+            return result;
+        }
+        return {
+            success: true,
+            text: result.text,
+            isSelection: result.selectionInfo?.hasSelection || false,
+            selectionRange: result.selectionInfo?.range
+        };
+    }
+    /**
+     * Applies corrections to the appropriate text portion (selection or full document)
+     */
+    async applyCorrectionToSelection(correctedText, originalSelectionRange) {
+        if (originalSelectionRange) {
+            // Apply correction to specific range
+            return await this.selectionManager.replaceTextInRange(originalSelectionRange, correctedText);
+        }
+        else {
+            // Apply correction to current selection or full document
+            return await this.replaceEditorText(correctedText);
+        }
+    }
+    /**
+     * Validates that a selection range is still valid in the current document
+     */
+    validateSelectionRange(range) {
+        return this.selectionManager.validateSelectionRange(range);
     }
 }
 exports.TextProcessor = TextProcessor;

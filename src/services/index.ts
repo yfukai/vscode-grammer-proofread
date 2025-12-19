@@ -7,3 +7,4 @@ export * from './RequestBuilder';
 export * from './ResponseParser';
 export * from './ConfigurationProvider';
 export * from './PromptManager';
+export * from './SelectionManager';

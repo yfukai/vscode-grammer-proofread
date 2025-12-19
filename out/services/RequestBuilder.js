@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RequestBuilder = void 0;
 class RequestBuilder {
     buildCorrectionRequest(correctionRequest, maxTokens, temperature) {
-        const systemPrompt = this.buildSystemPrompt(correctionRequest.correctionType);
+        const systemPrompt = this.buildSystemPrompt(correctionRequest.promptName);
         const userPrompt = this.buildUserPrompt(correctionRequest.prompt, correctionRequest.text);
         return {
             model: 'gpt-3.5-turbo',

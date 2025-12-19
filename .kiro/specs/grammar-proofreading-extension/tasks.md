@@ -1,195 +1,154 @@
 # Implementation Plan
 
-- [x] 1. Set up VSCode extension project structure
-  - Initialize VSCode extension project with TypeScript
-  - Configure package.json with extension metadata and dependencies
-  - Set up build configuration with webpack and TypeScript
-  - Create directory structure for models, services, and UI components
-  - _Requirements: 1.1, 2.1, 5.1_
+- [x] 1. Update data models for chat widget and text selection
+  - Create ChatMessage and MessageAction interfaces for chat functionality
+  - Update CorrectionRequest to include selection information (isSelection, selectionRange)
+  - Replace CorrectionType enum with NamePromptPair interface
+  - Add ConversationHistory interface for chat session management
+  - _Requirements: 1.1, 5.1, 6.1_
 
-- [x]* 1.1 Set up testing framework
-  - Configure Jest for unit testing with VSCode extension utilities
-  - Install and configure fast-check for property-based testing
-  - Set up test directory structure and configuration files
-  - _Requirements: All requirements (testing infrastructure)_
+- [x] 1.1 Write property test for text selection detection
+  - **Property 1: Button click captures correct text based on selection state**
+  - **Validates: Requirements 1.2, 5.1, 5.2**
 
-- [x] 2. Implement core data models and interfaces
-  - Create TypeScript interfaces for CorrectionRequest, CorrectionResponse, and TextChange
-  - Define CorrectionType enum and ExtensionConfiguration interface
-  - Implement JSON schema definitions for API response validation
-  - _Requirements: 4.1, 4.3, 4.4_
+- [x] 2. Implement text selection management
+  - Create SelectionManager service to detect and handle text selections
+  - Update TextProcessor to handle both full document and selected text
+  - Add selection range tracking and validation
+  - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-- [x]* 2.1 Write property test for JSON schema validation
-  - **Property 3: API response validation occurs**
-  - **Validates: Requirements 1.4, 4.1**
+- [x] 2.1 Write property test for selection processing
+  - **Property 14: Selection processing sends only selected text**
+  - **Property 15: Selection corrections replace only selected portion**
+  - **Validates: Requirements 5.3, 5.4**
 
-- [x]* 2.2 Write property test for response field validation
-  - **Property 12: Valid responses proceed to replacement**
-  - **Property 13: Missing fields cause response rejection**
-  - **Validates: Requirements 4.3, 4.4**
+- [x] 3. Create chat widget UI components
+  - Implement ChatWidget as VSCode webview panel
+  - Create MessageRenderer for displaying chat messages with proper formatting
+  - Add ConversationManager for handling message history and threading
+  - Implement dynamic button generation based on configured name-prompt pairs
+  - _Requirements: 1.1, 7.1, 7.6_
 
-- [x] 3. Create configuration management system
-  - Implement ConfigurationProvider class for extension settings
-  - Create configuration schema with API endpoint, key, and model settings
-  - Add configuration validation and connection testing functionality
-  - _Requirements: 2.1, 2.3_
+- [x] 3.1 Write property test for chat widget functionality
+  - **Property 23: Correction requests display in chat**
+  - **Property 25: Messages are visually distinguished**
+  - **Validates: Requirements 7.2, 7.6**
 
-- [x]* 3.1 Write property test for configuration validation
-  - **Property 5: Invalid credentials prevent API calls**
-  - **Property 6: Configuration updates trigger validation**
-  - **Validates: Requirements 2.2, 2.3**
+- [-] 4. Update configuration system for name-prompt pairs
+  - Replace fixed prompt categories with dynamic NamePromptPair management
+  - Update ConfigurationProvider to handle CRUD operations for name-prompt pairs
+  - Add validation for unique names and non-empty prompts
+  - Implement settings schema for array-based name-prompt configuration
+  - _Requirements: 6.1, 6.7, 6.8_
 
-- [x] 4. Implement LLM API client and communication layer
-  - Create LLMApiClient class for OpenAI-compatible API communication
-  - Implement RequestBuilder for constructing API requests with prompts
-  - Add ResponseParser for handling and validating API responses
-  - Implement error handling for network issues and API failures
-  - _Requirements: 1.3, 1.4, 2.4_
+- [ ] 4.1 Write property test for name-prompt pair management
+  - **Property 17: Name-prompt pair creation adds button**
+  - **Property 18: Name-prompt pair modification updates button**
+  - **Property 19: Name-prompt pair deletion removes button**
+  - **Validates: Requirements 6.2, 6.3, 6.4**
 
-- [x]* 4.1 Write property test for API request construction
-  - **Property 2: Text capture triggers API request**
-  - **Property 16: API requests combine text and prompts**
-  - **Validates: Requirements 1.3, 5.3**
+- [ ] 4.2 Write property test for configuration validation
+  - **Property 21: Invalid prompt content is validated**
+  - **Property 22: Duplicate names are prevented**
+  - **Validates: Requirements 6.7, 6.8**
 
-- [x]* 4.2 Write property test for error handling
-  - **Property 7: Network errors are handled gracefully**
-  - **Property 11: Validation failures are logged and reported**
-  - **Property 14: Malformed JSON is handled gracefully**
-  - **Validates: Requirements 2.4, 4.2, 4.5**
+- [ ] 5. Update LLM API integration for chat workflow
+  - Modify RequestBuilder to handle selection-based requests
+  - Update ResponseParser to format responses for chat display
+  - Add support for indicating processed text portion in API requests
+  - _Requirements: 1.3, 5.3, 5.5_
 
-- [x] 5. Create text processing and editor integration
-  - Implement TextProcessor class for capturing and replacing editor text
-  - Add editor state management and text selection handling
-  - Create document modification utilities with undo support
-  - _Requirements: 1.2, 1.5_
+- [ ] 5.1 Write property test for API integration updates
+  - **Property 2: Text capture triggers API request with correct prompt**
+  - **Property 16: Selection corrections indicate processed portion**
+  - **Validates: Requirements 1.3, 5.5**
 
-- [x]* 5.1 Write property test for text processing
-  - **Property 1: Button click captures editor text**
-  - **Property 4: Valid responses trigger text replacement**
-  - **Validates: Requirements 1.2, 1.5**
+- [ ] 6. Implement chat message handling and display
+  - Create message formatting logic for user requests and LLM responses
+  - Add action buttons (apply, dismiss) to correction messages
+  - Implement conversation history persistence for current session
+  - Add support for displaying multiple corrections with explanations
+  - _Requirements: 1.5, 1.6, 3.2, 7.3, 7.4_
 
-- [x] 6. Implement correction service orchestration
-  - Create CorrectionService class to coordinate correction workflow
-  - Implement correction type handling and prompt selection logic
-  - Add response processing and text replacement coordination
-  - _Requirements: 3.1, 3.2, 5.2_
+- [ ] 6.1 Write property test for message handling
+  - **Property 4: Valid responses display in chat widget with actions**
+  - **Property 9: Multiple corrections provide individual explanations**
+  - **Property 24: Conversation history is maintained**
+  - **Validates: Requirements 1.5, 1.6, 3.3, 7.4**
 
-- [x]* 6.1 Write property test for correction workflow
+- [ ] 7. Update CorrectionService for chat workflow
+  - Modify correction orchestration to work with chat widget
+  - Add support for applying corrections from chat action buttons
+  - Update workflow to display responses in chat instead of direct text replacement
+  - Implement selection-aware correction processing
+  - _Requirements: 3.1, 3.2, 5.4_
+
+- [ ] 7.1 Write property test for correction service updates
   - **Property 8: Correction responses extract required data**
-  - **Property 9: Text replacement shows explanations**
-  - **Property 15: Correction buttons use associated prompts**
-  - **Validates: Requirements 3.1, 3.2, 5.2**
+  - **Validates: Requirements 3.1**
 
-- [x] 7. Create prompt management system
-  - Implement PromptManager class for predefined correction prompts
-  - Add support for custom prompt creation and modification
-  - Create prompt templates for grammar, style, clarity, and tone corrections
-  - _Requirements: 5.5_
-
-- [x]* 7.1 Write property test for prompt management
-  - **Property 18: Prompt customization is supported**
-  - **Validates: Requirements 5.5**
-
-- [x] 8. Implement VSCode UI integration
-  - Create extension activation and command registration
-  - Implement correction buttons in editor context menu and command palette
-  - Add status bar indicators and progress notifications
-  - _Requirements: 1.1, 5.1, 5.4_
-
-- [x]* 8.1 Write unit tests for UI integration
-  - Test extension activation and command registration
-  - Test button creation and labeling
-  - Test status indicators and notifications
-  - _Requirements: 1.1, 5.1, 5.4_
-
-- [x] 9. Add user feedback and notification system
-  - Implement NotificationManager for displaying explanations and errors
-  - Create explanation display with change highlighting
-  - Add support for multiple correction explanations
-  - _Requirements: 3.2, 3.3, 3.4_
-
-- [x]* 9.1 Write property test for user feedback
-  - **Property 10: Multiple corrections provide individual explanations**
-  - **Property 17: Correction types have clear labels**
-  - **Validates: Requirements 3.3, 5.4**
-
-- [x] 10. Checkpoint - Ensure all tests pass
+- [ ] 8. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 11. Implement extension packaging and deployment configuration
-  - Configure extension manifest with proper metadata and permissions
-  - Set up build scripts for extension packaging
-  - Create installation and usage documentation
-  - _Requirements: 1.1, 2.1_
+- [ ] 9. Update VSCode extension integration
+  - Modify extension activation to create chat widget panel
+  - Update command registration to work with dynamic name-prompt pairs
+  - Add chat widget lifecycle management (open, close, preserve history)
+  - _Requirements: 1.1, 7.1, 7.7_
 
-- [x]* 11.1 Write integration tests for complete workflows
-  - Test end-to-end correction workflows
-  - Test configuration management flows
-  - Test error scenarios and recovery
+- [ ] 9.1 Write property test for extension integration
+  - **Property 26: Session history persists across widget lifecycle**
+  - **Validates: Requirements 7.7**
+
+- [ ] 10. Implement settings integration for name-prompt pairs
+  - Update package.json to define array-based settings schema for name-prompt pairs
+  - Add settings UI for creating, editing, and deleting name-prompt pairs
+  - Implement real-time chat widget updates when settings change
+  - _Requirements: 6.1, 6.2, 6.6_
+
+- [ ] 10.1 Write property test for settings integration
+  - **Property 20: Name-prompt configuration round-trip**
+  - **Validates: Requirements 6.5, 6.6**
+
+- [ ] 11. Add error handling for chat workflow
+  - Update error handling to display errors in chat widget
+  - Add graceful handling of API failures with chat notifications
+  - Implement validation error display for malformed responses
+  - _Requirements: 2.2, 2.4, 4.2, 4.4, 4.5_
+
+- [ ] 11.1 Write property test for error handling
+  - **Property 5: Invalid credentials prevent API calls**
+  - **Property 7: Network errors are handled gracefully**
+  - **Property 10: Validation failures are logged and reported**
+  - **Property 12: Missing fields cause response rejection**
+  - **Property 13: Malformed JSON is handled gracefully**
+  - **Validates: Requirements 2.2, 2.4, 4.2, 4.4, 4.5**
+
+- [ ] 12. Update API response validation
+  - Ensure JSON schema validation works with chat workflow
+  - Add validation for chat-specific response formatting
+  - Update response processing to handle chat display requirements
+  - _Requirements: 1.4, 4.1, 4.3_
+
+- [ ] 12.1 Write property test for response validation
+  - **Property 3: API response validation occurs**
+  - **Property 11: Valid responses proceed to processing**
+  - **Validates: Requirements 1.4, 4.1, 4.3**
+
+- [ ] 13. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 14. Update extension packaging and configuration
+  - Update package.json with new chat widget and settings contributions
+  - Add webview permissions for chat widget functionality
+  - Update extension manifest for new UI components
+  - _Requirements: 1.1, 6.1_
+
+- [ ] 14.1 Write integration tests for complete chat workflow
+  - Test end-to-end correction workflow through chat widget
+  - Test name-prompt pair management and chat button updates
+  - Test text selection and chat display integration
   - _Requirements: All requirements (integration testing)_
 
-- [x] 12. Final Checkpoint - Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [x] 13. Implement VSCode settings integration for configurable prompts
-  - Update package.json to define settings schema for default prompts
-  - Add settings contributions for grammar, style, clarity, and tone prompts
-  - Include setting descriptions and default values for each prompt type
-  - _Requirements: 6.1, 6.6_
-
-- [x] 13.1 Write unit tests for settings schema
-  - Test settings schema definition and validation
-  - Test default value configuration
-  - _Requirements: 6.1, 6.6_
-
-- [x] 14. Update data models for prompt configuration
-  - Add DefaultPromptConfiguration interface to models
-  - Update ExtensionConfiguration to include defaultPrompts field
-  - Modify CustomPrompt interface to include description field
-  - _Requirements: 6.2_
-
-- [x] 15. Enhance ConfigurationProvider for prompt settings
-  - Add methods to read default prompt configurations from VSCode settings
-  - Implement prompt validation logic for settings input
-  - Add support for prompt reset functionality
-  - _Requirements: 6.2, 6.5, 6.7_
-
-- [x] 15.1 Write property test for prompt persistence
-  - **Property 19: Settings modifications persist correctly**
-  - **Validates: Requirements 6.2**
-
-- [x] 15.2 Write property test for prompt validation
-  - **Property 23: Invalid prompts are validated and rejected**
-  - **Validates: Requirements 6.7**
-
-- [x] 16. Update PromptManager for settings integration
-  - Modify getPrompt method to check settings before using defaults
-  - Add fallback logic to use built-in defaults when settings are empty
-  - Implement prompt reset functionality to restore original defaults
-  - _Requirements: 6.3, 6.4, 6.5_
-
-- [x] 16.1 Write property test for prompt selection logic
-  - **Property 20: Configured prompts are used when available**
-  - **Property 21: Fallback to default prompts works**
-  - **Validates: Requirements 6.3, 6.4**
-
-- [x] 16.2 Write property test for prompt reset functionality
-  - **Property 22: Prompt reset restores defaults**
-  - **Validates: Requirements 6.5**
-
-- [x] 17. Update CorrectionService to use configurable prompts
-  - Modify correction workflow to retrieve prompts from updated PromptManager
-  - Ensure all correction types use configured prompts when available
-  - _Requirements: 6.3, 6.4_
-
-- [x] 18. Checkpoint - Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [x] 19. Update extension documentation for prompt configuration
-  - Add documentation for new prompt configuration settings
-  - Include examples of customizing default prompts
-  - Document prompt reset and validation features
-  - _Requirements: 6.1, 6.6_
-
-- [x] 20. Final Checkpoint - Ensure all tests pass
+- [ ] 15. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

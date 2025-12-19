@@ -1,9 +1,12 @@
-import { CorrectionType } from './CorrectionType';
-
 export interface CorrectionRequest {
     text: string;
     prompt: string;
-    correctionType: CorrectionType;
+    promptName: string;
+    isSelection: boolean;
+    selectionRange?: {
+        start: number;
+        end: number;
+    };
     apiEndpoint: string;
     apiKey: string;
 }

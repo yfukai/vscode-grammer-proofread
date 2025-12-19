@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { CorrectionType } from '../models/CorrectionType';
 import { CorrectionService } from '../services/CorrectionService';
 
 export class CommandRegistry {
@@ -10,28 +9,25 @@ export class CommandRegistry {
     }
 
     registerCommands(context: vscode.ExtensionContext): void {
-        // Register grammar correction command
+        // Register default correction commands using built-in name-prompt pairs
         const grammarCommand = vscode.commands.registerCommand(
             'grammarProofreading.correctGrammar',
-            () => this.handleCorrectionCommand(CorrectionType.GRAMMAR)
+            () => this.handleCorrectionCommand('Grammar')
         );
 
-        // Register style correction command
         const styleCommand = vscode.commands.registerCommand(
             'grammarProofreading.correctStyle',
-            () => this.handleCorrectionCommand(CorrectionType.STYLE)
+            () => this.handleCorrectionCommand('Style')
         );
 
-        // Register clarity correction command
         const clarityCommand = vscode.commands.registerCommand(
             'grammarProofreading.correctClarity',
-            () => this.handleCorrectionCommand(CorrectionType.CLARITY)
+            () => this.handleCorrectionCommand('Clarity')
         );
 
-        // Register tone correction command
         const toneCommand = vscode.commands.registerCommand(
             'grammarProofreading.correctTone',
-            () => this.handleCorrectionCommand(CorrectionType.TONE)
+            () => this.handleCorrectionCommand('Tone')
         );
 
         // Register custom correction command
@@ -57,9 +53,9 @@ export class CommandRegistry {
         );
     }
 
-    private async handleCorrectionCommand(correctionType: CorrectionType): Promise<void> {
+    private async handleCorrectionCommand(promptName: string): Promise<void> {
         try {
-            const result = await this.correctionService.performCorrection(correctionType);
+            const result = await this.correctionService.performCorrectionByName(promptName);
             
             if (!result.success) {
                 vscode.window.showErrorMessage(`Correction failed: ${result.error}`);
@@ -72,26 +68,70 @@ export class CommandRegistry {
 
     private async handleCustomCorrectionCommand(): Promise<void> {
         try {
-            // Prompt user for custom correction prompt
-            const customPrompt = await vscode.window.showInputBox({
-                prompt: 'Enter your custom correction instructions',
-                placeHolder: 'e.g., Make this text more formal and professional',
-                validateInput: (value) => {
-                    if (!value || value.trim() === '') {
-                        return 'Please enter correction instructions';
-                    }
-                    return null;
-                }
+            // Get all available name-prompt pairs
+            const namePromptPairs = this.correctionService.getAllNamePromptPairs();
+            
+            if (namePromptPairs.length === 0) {
+                vscode.window.showWarningMessage('No custom prompts configured. Please add some in settings.');
+                return;
+            }
+
+            // Show quick pick for available prompts
+            const items = namePromptPairs.map(pair => ({
+                label: pair.name,
+                description: pair.description || '',
+                detail: pair.prompt.substring(0, 100) + (pair.prompt.length > 100 ? '...' : ''),
+                pair
+            }));
+
+            items.push({
+                label: '$(add) Create Custom Prompt...',
+                description: 'Enter a one-time custom prompt',
+                detail: 'Use a custom prompt without saving it',
+                pair: null as any
             });
 
-            if (customPrompt) {
-                const result = await this.correctionService.performCorrection(
-                    CorrectionType.CUSTOM, 
-                    customPrompt
-                );
+            const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Select a correction type or create a custom prompt',
+                matchOnDescription: true,
+                matchOnDetail: true
+            });
+
+            if (!selected) {
+                return;
+            }
+
+            if (selected.pair) {
+                // Use existing name-prompt pair
+                const result = await this.correctionService.performCorrectionById(selected.pair.id);
                 
                 if (!result.success) {
                     vscode.window.showErrorMessage(`Correction failed: ${result.error}`);
+                }
+            } else {
+                // Create custom prompt
+                const customPrompt = await vscode.window.showInputBox({
+                    prompt: 'Enter your custom correction instructions',
+                    placeHolder: 'e.g., Make this text more formal and professional',
+                    validateInput: (value) => {
+                        if (!value || value.trim() === '') {
+                            return 'Please enter correction instructions';
+                        }
+                        return null;
+                    }
+                });
+
+                if (customPrompt) {
+                    // Use the first available name-prompt pair as a base, but with custom prompt
+                    const firstPair = namePromptPairs[0];
+                    const result = await this.correctionService.performCorrectionById(
+                        firstPair.id, 
+                        customPrompt
+                    );
+                    
+                    if (!result.success) {
+                        vscode.window.showErrorMessage(`Correction failed: ${result.error}`);
+                    }
                 }
             }
         } catch (error) {

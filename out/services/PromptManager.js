@@ -1,117 +1,41 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PromptManager = void 0;
-const CorrectionType_1 = require("../models/CorrectionType");
 const ConfigurationProvider_1 = require("./ConfigurationProvider");
 class PromptManager {
     constructor() {
-        this.defaultPrompts = new Map();
         this.configProvider = new ConfigurationProvider_1.ConfigurationProvider();
-        this.initializeDefaultPrompts();
     }
-    initializeDefaultPrompts() {
-        this.defaultPrompts = new Map([
-            [CorrectionType_1.CorrectionType.GRAMMAR,
-                'Please correct any grammatical errors in the following text. Focus on:\n' +
-                    '- Subject-verb agreement\n' +
-                    '- Verb tenses and consistency\n' +
-                    '- Punctuation and capitalization\n' +
-                    '- Sentence structure\n' +
-                    'Preserve the original meaning and style.'
-            ],
-            [CorrectionType_1.CorrectionType.STYLE,
-                'Please improve the writing style of the following text. Focus on:\n' +
-                    '- Word choice and vocabulary\n' +
-                    '- Sentence variety and flow\n' +
-                    '- Clarity and conciseness\n' +
-                    '- Professional tone\n' +
-                    'Maintain the author\'s voice while enhancing readability.'
-            ],
-            [CorrectionType_1.CorrectionType.CLARITY,
-                'Please improve the clarity and readability of the following text. Focus on:\n' +
-                    '- Simplifying complex sentences\n' +
-                    '- Removing ambiguity\n' +
-                    '- Improving logical flow\n' +
-                    '- Making concepts more understandable\n' +
-                    'Ensure the message is clear and accessible.'
-            ],
-            [CorrectionType_1.CorrectionType.TONE,
-                'Please adjust the tone of the following text to be more appropriate. Focus on:\n' +
-                    '- Consistency in formality level\n' +
-                    '- Appropriate voice for the audience\n' +
-                    '- Professional yet engaging language\n' +
-                    '- Removing inappropriate or inconsistent tone\n' +
-                    'Maintain the core message while improving tone.'
-            ]
-        ]);
+    getPromptByName(name) {
+        const namePromptPair = this.getNamePromptPair(name);
+        return namePromptPair?.prompt;
     }
-    getPrompt(correctionType, customPromptName) {
-        // If a custom prompt name is provided, try to find it
-        if (customPromptName) {
-            const customPrompt = this.getCustomPrompt(customPromptName);
-            if (customPrompt) {
-                return customPrompt.prompt;
-            }
-        }
-        // Get configured prompt from settings first, fallback to built-in default
-        const defaultPrompts = this.configProvider.getDefaultPromptConfiguration();
-        return defaultPrompts[correctionType] || this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
+    getPromptById(id) {
+        const namePromptPair = this.getNamePromptPairById(id);
+        return namePromptPair?.prompt;
     }
-    getCustomPrompt(name) {
-        const config = this.configProvider.getConfiguration();
-        return config.customPrompts.find(prompt => prompt.name === name);
+    getNamePromptPair(name) {
+        return this.configProvider.getNamePromptPairByName(name);
     }
-    async addCustomPrompt(prompt) {
-        try {
-            const config = this.configProvider.getConfiguration();
-            // Check if prompt with same name already exists
-            const existingIndex = config.customPrompts.findIndex(p => p.name === prompt.name);
-            if (existingIndex >= 0) {
-                // Update existing prompt
-                config.customPrompts[existingIndex] = prompt;
-            }
-            else {
-                // Add new prompt
-                config.customPrompts.push(prompt);
-            }
-            await this.configProvider.updateConfiguration('customPrompts', config.customPrompts);
-            return { success: true };
-        }
-        catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to save custom prompt'
-            };
-        }
+    getNamePromptPairById(id) {
+        return this.configProvider.getNamePromptPairById(id);
     }
-    async removeCustomPrompt(name) {
-        try {
-            const config = this.configProvider.getConfiguration();
-            const filteredPrompts = config.customPrompts.filter(prompt => prompt.name !== name);
-            if (filteredPrompts.length === config.customPrompts.length) {
-                return { success: false, error: 'Custom prompt not found' };
-            }
-            await this.configProvider.updateConfiguration('customPrompts', filteredPrompts);
-            return { success: true };
-        }
-        catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to remove custom prompt'
-            };
-        }
+    async createNamePromptPair(namePromptPair) {
+        return await this.configProvider.createNamePromptPair(namePromptPair);
     }
-    getAllCustomPrompts() {
-        const config = this.configProvider.getConfiguration();
-        return config.customPrompts;
+    async updateNamePromptPair(id, updates) {
+        return await this.configProvider.updateNamePromptPair(id, updates);
     }
-    getDefaultPrompts() {
-        return Array.from(this.defaultPrompts.entries()).map(([type, prompt]) => ({
-            type,
-            prompt
-        }));
+    async deleteNamePromptPair(id) {
+        return await this.configProvider.deleteNamePromptPair(id);
     }
-    validatePrompt(prompt) {
+    getAllNamePromptPairs() {
+        return this.configProvider.getNamePromptPairs();
+    }
+    getDefaultNamePromptPairs() {
+        return this.configProvider.getDefaultNamePromptPairs();
+    }
+    validateNamePromptPair(prompt) {
         const errors = [];
         if (!prompt.name || prompt.name.trim() === '') {
             errors.push('Prompt name is required');
@@ -119,30 +43,23 @@ class PromptManager {
         if (!prompt.prompt || prompt.prompt.trim() === '') {
             errors.push('Prompt content is required');
         }
-        if (!prompt.correctionType || prompt.correctionType.trim() === '') {
-            errors.push('Correction type is required');
-        }
         // Check if name contains only valid characters
         if (prompt.name && !/^[a-zA-Z0-9\s\-_]+$/.test(prompt.name)) {
             errors.push('Prompt name can only contain letters, numbers, spaces, hyphens, and underscores');
+        }
+        if (prompt.name && prompt.name.length > 50) {
+            errors.push('Prompt name cannot exceed 50 characters');
+        }
+        if (prompt.prompt && prompt.prompt.length > 2000) {
+            errors.push('Prompt content cannot exceed 2000 characters');
+        }
+        if (prompt.prompt && prompt.prompt.trim().length < 10) {
+            errors.push('Prompt content must be at least 10 characters long');
         }
         return {
             isValid: errors.length === 0,
             errors
         };
-    }
-    async updateDefaultPrompt(correctionType, prompt) {
-        return await this.configProvider.updateDefaultPrompt(correctionType, prompt);
-    }
-    async resetDefaultPrompt(correctionType) {
-        return await this.configProvider.resetDefaultPrompt(correctionType);
-    }
-    getConfiguredDefaultPrompt(correctionType) {
-        const defaultPrompts = this.configProvider.getDefaultPromptConfiguration();
-        return defaultPrompts[correctionType] || this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
-    }
-    getBuiltInDefaultPrompt(correctionType) {
-        return this.defaultPrompts.get(correctionType) || 'Please improve the following text.';
     }
 }
 exports.PromptManager = PromptManager;

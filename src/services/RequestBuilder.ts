@@ -12,7 +12,7 @@ export interface APIRequest {
 
 export class RequestBuilder {
     buildCorrectionRequest(correctionRequest: CorrectionRequest, maxTokens: number, temperature: number): APIRequest {
-        const systemPrompt = this.buildSystemPrompt(correctionRequest.correctionType);
+        const systemPrompt = this.buildSystemPrompt(correctionRequest.promptName);
         const userPrompt = this.buildUserPrompt(correctionRequest.prompt, correctionRequest.text);
 
         return {

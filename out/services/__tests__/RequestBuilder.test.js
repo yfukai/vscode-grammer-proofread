@@ -25,7 +25,6 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const fc = __importStar(require("fast-check"));
 const RequestBuilder_1 = require("../RequestBuilder");
-const CorrectionType_1 = require("../../models/CorrectionType");
 describe('RequestBuilder', () => {
     let requestBuilder;
     beforeEach(() => {
@@ -41,7 +40,12 @@ describe('RequestBuilder', () => {
             const correctionRequestArb = fc.record({
                 text: fc.string({ minLength: 1 }),
                 prompt: fc.string(),
-                correctionType: fc.oneof(fc.constant(CorrectionType_1.CorrectionType.GRAMMAR), fc.constant(CorrectionType_1.CorrectionType.STYLE), fc.constant(CorrectionType_1.CorrectionType.CLARITY), fc.constant(CorrectionType_1.CorrectionType.TONE), fc.constant(CorrectionType_1.CorrectionType.CUSTOM)),
+                promptName: fc.string({ minLength: 1 }),
+                isSelection: fc.boolean(),
+                selectionRange: fc.option(fc.record({
+                    start: fc.integer({ min: 0 }),
+                    end: fc.integer({ min: 0 })
+                }), { nil: undefined }),
                 apiEndpoint: fc.webUrl(),
                 apiKey: fc.string()
             });
@@ -76,12 +80,13 @@ describe('RequestBuilder', () => {
         test('should properly combine text and prompts in user message', () => {
             const textArb = fc.string({ minLength: 1 });
             const promptArb = fc.string();
-            const correctionTypeArb = fc.oneof(fc.constant(CorrectionType_1.CorrectionType.GRAMMAR), fc.constant(CorrectionType_1.CorrectionType.STYLE), fc.constant(CorrectionType_1.CorrectionType.CLARITY), fc.constant(CorrectionType_1.CorrectionType.TONE), fc.constant(CorrectionType_1.CorrectionType.CUSTOM));
-            fc.assert(fc.property(textArb, promptArb, correctionTypeArb, (text, prompt, correctionType) => {
+            const promptNameArb = fc.string({ minLength: 1 });
+            fc.assert(fc.property(textArb, promptArb, promptNameArb, (text, prompt, promptName) => {
                 const request = {
                     text,
                     prompt,
-                    correctionType,
+                    promptName,
+                    isSelection: false,
                     apiEndpoint: 'https://api.openai.com/v1/chat/completions',
                     apiKey: 'test-key'
                 };
@@ -95,30 +100,28 @@ describe('RequestBuilder', () => {
                 }
             }), { numRuns: 100 });
         });
-        test('should generate different system prompts for different correction types', () => {
+        test('should generate consistent system prompts for different prompt names', () => {
             const text = 'This is a test sentence.';
             const baseRequest = {
                 text,
-                prompt: '',
-                correctionType: CorrectionType_1.CorrectionType.GRAMMAR,
+                prompt: 'Fix grammar issues',
+                promptName: 'Grammar Check',
+                isSelection: false,
                 apiEndpoint: 'https://api.openai.com/v1/chat/completions',
                 apiKey: 'test-key'
             };
-            const correctionTypes = [
-                CorrectionType_1.CorrectionType.GRAMMAR,
-                CorrectionType_1.CorrectionType.STYLE,
-                CorrectionType_1.CorrectionType.CLARITY,
-                CorrectionType_1.CorrectionType.TONE,
-                CorrectionType_1.CorrectionType.CUSTOM
+            const promptNames = [
+                'Grammar Check',
+                'Style Improvement',
+                'Clarity Enhancement',
+                'Tone Adjustment',
+                'Custom Correction'
             ];
-            const systemPrompts = correctionTypes.map(type => {
-                const request = { ...baseRequest, correctionType: type };
+            const systemPrompts = promptNames.map(name => {
+                const request = { ...baseRequest, promptName: name };
                 const apiRequest = requestBuilder.buildCorrectionRequest(request, 1000, 0.3);
                 return apiRequest.messages[0].content;
             });
-            // Each correction type should generate a unique system prompt
-            const uniquePrompts = new Set(systemPrompts);
-            expect(uniquePrompts.size).toBe(correctionTypes.length);
             // All prompts should contain the base JSON structure requirement
             systemPrompts.forEach(prompt => {
                 expect(prompt).toContain('correctedText');
@@ -129,12 +132,13 @@ describe('RequestBuilder', () => {
         });
         test('should handle empty and whitespace-only prompts correctly', () => {
             const text = 'Test text for correction.';
-            const emptyPrompts = ['', '   ', '\t\n', null, undefined];
+            const emptyPrompts = ['', '   ', '\t\n'];
             emptyPrompts.forEach(prompt => {
                 const request = {
                     text,
-                    prompt: prompt || '',
-                    correctionType: CorrectionType_1.CorrectionType.GRAMMAR,
+                    prompt: prompt,
+                    promptName: 'Grammar Check',
+                    isSelection: false,
                     apiEndpoint: 'https://api.openai.com/v1/chat/completions',
                     apiKey: 'test-key'
                 };
@@ -152,7 +156,8 @@ describe('RequestBuilder', () => {
             const request = {
                 text: 'This is a test sentence with some errors.',
                 prompt: 'Fix grammar issues',
-                correctionType: CorrectionType_1.CorrectionType.GRAMMAR,
+                promptName: 'Grammar Check',
+                isSelection: false,
                 apiEndpoint: 'https://api.openai.com/v1/chat/completions',
                 apiKey: 'sk-test123'
             };
@@ -170,7 +175,8 @@ describe('RequestBuilder', () => {
             const request = {
                 text,
                 prompt: customPrompt,
-                correctionType: CorrectionType_1.CorrectionType.TONE,
+                promptName: 'Tone Adjustment',
+                isSelection: false,
                 apiEndpoint: 'https://api.openai.com/v1/chat/completions',
                 apiKey: 'sk-test123'
             };
@@ -184,7 +190,8 @@ describe('RequestBuilder', () => {
             const request = {
                 text,
                 prompt: '',
-                correctionType: CorrectionType_1.CorrectionType.GRAMMAR,
+                promptName: 'Grammar Check',
+                isSelection: false,
                 apiEndpoint: 'https://api.openai.com/v1/chat/completions',
                 apiKey: 'sk-test123'
             };

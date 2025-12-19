@@ -29,7 +29,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConfigurationProvider = void 0;
 const vscode = __importStar(require("vscode"));
 const node_fetch_1 = __importDefault(require("node-fetch"));
-const CorrectionType_1 = require("../models/CorrectionType");
 class ConfigurationProvider {
     getConfiguration() {
         const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
@@ -39,82 +38,214 @@ class ConfigurationProvider {
             model: config.get('model', 'gpt-3.5-turbo'),
             maxTokens: config.get('maxTokens', 1000),
             temperature: config.get('temperature', 0.3),
-            customPrompts: config.get('customPrompts', []),
-            defaultPrompts: this.getDefaultPromptConfiguration()
+            customPrompts: this.getNamePromptPairs()
         };
+    }
+    getNamePromptPairs() {
+        const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+        const customPrompts = config.get('customPrompts', []);
+        // Return custom prompts if they exist, otherwise return default ones
+        if (!customPrompts || customPrompts.length === 0) {
+            return this.getDefaultNamePromptPairs();
+        }
+        return customPrompts;
     }
     async updateConfiguration(key, value, target) {
         const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
         await config.update(key, value, target || vscode.ConfigurationTarget.Global);
     }
-    getDefaultPromptConfiguration() {
-        const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
-        return {
-            grammar: config.get('defaultPrompts.grammar') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.GRAMMAR),
-            style: config.get('defaultPrompts.style') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.STYLE),
-            clarity: config.get('defaultPrompts.clarity') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.CLARITY),
-            tone: config.get('defaultPrompts.tone') || this.getBuiltInDefaultPrompt(CorrectionType_1.CorrectionType.TONE)
-        };
+    getDefaultNamePromptPairs() {
+        const now = new Date();
+        return [
+            {
+                id: 'grammar',
+                name: 'Grammar',
+                prompt: 'Please correct any grammatical errors in the following text. Focus on:\n' +
+                    '- Subject-verb agreement\n' +
+                    '- Verb tenses and consistency\n' +
+                    '- Punctuation and capitalization\n' +
+                    '- Sentence structure\n' +
+                    'Preserve the original meaning and style.',
+                description: 'Fix grammatical errors and improve sentence structure',
+                createdAt: now,
+                updatedAt: now
+            },
+            {
+                id: 'style',
+                name: 'Style',
+                prompt: 'Please improve the writing style of the following text. Focus on:\n' +
+                    '- Word choice and vocabulary\n' +
+                    '- Sentence variety and flow\n' +
+                    '- Clarity and conciseness\n' +
+                    '- Professional tone\n' +
+                    'Maintain the author\'s voice while enhancing readability.',
+                description: 'Improve writing style and readability',
+                createdAt: now,
+                updatedAt: now
+            },
+            {
+                id: 'clarity',
+                name: 'Clarity',
+                prompt: 'Please improve the clarity and readability of the following text. Focus on:\n' +
+                    '- Simplifying complex sentences\n' +
+                    '- Removing ambiguity\n' +
+                    '- Improving logical flow\n' +
+                    '- Making concepts more understandable\n' +
+                    'Ensure the message is clear and accessible.',
+                description: 'Enhance clarity and remove ambiguity',
+                createdAt: now,
+                updatedAt: now
+            },
+            {
+                id: 'tone',
+                name: 'Tone',
+                prompt: 'Please adjust the tone of the following text to be more appropriate. Focus on:\n' +
+                    '- Consistency in formality level\n' +
+                    '- Appropriate voice for the audience\n' +
+                    '- Professional yet engaging language\n' +
+                    '- Removing inappropriate or inconsistent tone\n' +
+                    'Maintain the core message while improving tone.',
+                description: 'Adjust tone and formality level',
+                createdAt: now,
+                updatedAt: now
+            }
+        ];
     }
-    getBuiltInDefaultPrompt(correctionType) {
-        const builtInDefaults = {
-            [CorrectionType_1.CorrectionType.GRAMMAR]: 'Please correct any grammatical errors in the following text. Focus on:\n' +
-                '- Subject-verb agreement\n' +
-                '- Verb tenses and consistency\n' +
-                '- Punctuation and capitalization\n' +
-                '- Sentence structure\n' +
-                'Preserve the original meaning and style.',
-            [CorrectionType_1.CorrectionType.STYLE]: 'Please improve the writing style of the following text. Focus on:\n' +
-                '- Word choice and vocabulary\n' +
-                '- Sentence variety and flow\n' +
-                '- Clarity and conciseness\n' +
-                '- Professional tone\n' +
-                'Maintain the author\'s voice while enhancing readability.',
-            [CorrectionType_1.CorrectionType.CLARITY]: 'Please improve the clarity and readability of the following text. Focus on:\n' +
-                '- Simplifying complex sentences\n' +
-                '- Removing ambiguity\n' +
-                '- Improving logical flow\n' +
-                '- Making concepts more understandable\n' +
-                'Ensure the message is clear and accessible.',
-            [CorrectionType_1.CorrectionType.TONE]: 'Please adjust the tone of the following text to be more appropriate. Focus on:\n' +
-                '- Consistency in formality level\n' +
-                '- Appropriate voice for the audience\n' +
-                '- Professional yet engaging language\n' +
-                '- Removing inappropriate or inconsistent tone\n' +
-                'Maintain the core message while improving tone.'
-        };
-        return builtInDefaults[correctionType] || 'Please improve the following text.';
-    }
-    async updateDefaultPrompt(correctionType, prompt, target) {
+    // CRUD operations for name-prompt pairs
+    async createNamePromptPair(namePromptPair) {
         try {
-            const validation = this.validatePrompt(prompt);
+            // Validate the name-prompt pair
+            const validation = this.validateNamePromptPair(namePromptPair);
             if (!validation.isValid) {
                 return { success: false, error: validation.errors.join(', ') };
             }
-            const key = `defaultPrompts.${correctionType}`;
-            await this.updateConfiguration(key, prompt, target);
-            return { success: true };
+            // Get the actual stored custom prompts and all available pairs for duplicate checking
+            const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+            const existingCustomPairs = config.get('customPrompts', []);
+            const allPairs = this.getNamePromptPairs(); // This includes defaults + custom
+            // Check for duplicate names across all pairs (defaults + custom)
+            if (allPairs.some(pair => pair.name.toLowerCase() === namePromptPair.name.toLowerCase())) {
+                return { success: false, error: 'A name-prompt pair with this name already exists' };
+            }
+            // Create new pair with generated ID and timestamps
+            const now = new Date();
+            const id = this.generateId();
+            const newPair = {
+                ...namePromptPair,
+                id,
+                createdAt: now,
+                updatedAt: now
+            };
+            // Add to existing custom pairs and save
+            const updatedPairs = [...existingCustomPairs, newPair];
+            await this.updateConfiguration('customPrompts', updatedPairs);
+            return { success: true, id };
         }
         catch (error) {
             return {
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to update prompt'
+                error: error instanceof Error ? error.message : 'Failed to create name-prompt pair'
             };
         }
     }
-    async resetDefaultPrompt(correctionType, target) {
+    async updateNamePromptPair(id, updates) {
         try {
-            const builtInDefault = this.getBuiltInDefaultPrompt(correctionType);
-            const key = `defaultPrompts.${correctionType}`;
-            await this.updateConfiguration(key, builtInDefault, target);
+            // Get the actual stored custom prompts, not the fallback defaults
+            const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+            const existingPairs = config.get('customPrompts', []);
+            const pairIndex = existingPairs.findIndex(pair => pair.id === id);
+            if (pairIndex === -1) {
+                return { success: false, error: 'Name-prompt pair not found' };
+            }
+            // Create updated pair
+            const existingPair = existingPairs[pairIndex];
+            const updatedPair = {
+                ...existingPair,
+                ...updates,
+                id: existingPair.id,
+                createdAt: existingPair.createdAt,
+                updatedAt: new Date()
+            };
+            // Validate the updated pair
+            const validation = this.validateNamePromptPair(updatedPair);
+            if (!validation.isValid) {
+                return { success: false, error: validation.errors.join(', ') };
+            }
+            // Check for duplicate names (excluding current pair)
+            if (updates.name) {
+                const otherPairs = existingPairs.filter(pair => pair.id !== id);
+                if (otherPairs.some(pair => pair.name.toLowerCase() === updates.name.toLowerCase())) {
+                    return { success: false, error: 'A name-prompt pair with this name already exists' };
+                }
+            }
+            // Update the pair and save
+            const updatedPairs = [...existingPairs];
+            updatedPairs[pairIndex] = updatedPair;
+            await this.updateConfiguration('customPrompts', updatedPairs);
             return { success: true };
         }
         catch (error) {
             return {
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to reset prompt'
+                error: error instanceof Error ? error.message : 'Failed to update name-prompt pair'
             };
         }
+    }
+    async deleteNamePromptPair(id) {
+        try {
+            // Get the actual stored custom prompts, not the fallback defaults
+            const config = vscode.workspace.getConfiguration(ConfigurationProvider.CONFIGURATION_SECTION);
+            const existingPairs = config.get('customPrompts', []);
+            const pairIndex = existingPairs.findIndex(pair => pair.id === id);
+            if (pairIndex === -1) {
+                return { success: false, error: 'Name-prompt pair not found' };
+            }
+            // Remove the pair and save
+            const updatedPairs = existingPairs.filter(pair => pair.id !== id);
+            await this.updateConfiguration('customPrompts', updatedPairs);
+            return { success: true };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to delete name-prompt pair'
+            };
+        }
+    }
+    getNamePromptPairById(id) {
+        const pairs = this.getNamePromptPairs();
+        return pairs.find(pair => pair.id === id);
+    }
+    getNamePromptPairByName(name) {
+        const pairs = this.getNamePromptPairs();
+        return pairs.find(pair => pair.name.toLowerCase() === name.toLowerCase());
+    }
+    generateId() {
+        return `npp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    validateNamePromptPair(pair) {
+        const errors = [];
+        // Validate name
+        if (!pair.name || pair.name.trim() === '') {
+            errors.push('Name is required');
+        }
+        else if (pair.name.trim().length < 1) {
+            errors.push('Name cannot be empty');
+        }
+        else if (pair.name.length > 50) {
+            errors.push('Name cannot exceed 50 characters');
+        }
+        // Validate prompt using existing validation
+        if (pair.prompt !== undefined) {
+            const promptValidation = this.validatePrompt(pair.prompt);
+            if (!promptValidation.isValid) {
+                errors.push(...promptValidation.errors);
+            }
+        }
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
     }
     validatePrompt(prompt) {
         const errors = [];
