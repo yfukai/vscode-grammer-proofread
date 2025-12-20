@@ -9,7 +9,7 @@ jest.setTimeout(10000);
 const mockVscode = {
   workspace: {
     getConfiguration: jest.fn(),
-    onDidChangeConfiguration: jest.fn()
+    onDidChangeConfiguration: jest.fn(() => ({ dispose: jest.fn() }))
   },
   window: {
     showErrorMessage: jest.fn(),
@@ -21,6 +21,9 @@ const mockVscode = {
   },
   Uri: {
     parse: jest.fn()
+  },
+  ConfigurationTarget: {
+    Workspace: 2
   }
 };
 

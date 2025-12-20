@@ -8,5 +8,8 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/test/**'
   ],
-  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts']
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
+  moduleNameMapper: {
+    '^vscode$': '<rootDir>/src/__mocks__/vscode.ts'
+  }
 };

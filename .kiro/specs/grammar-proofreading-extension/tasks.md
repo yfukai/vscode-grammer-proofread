@@ -24,13 +24,13 @@
   - **Property 3: Minimum prompt invariant**
   - **Validates: Requirements 4.2**
 
-- [-] 3. Create configuration and storage services
+- [x] 3. Create configuration and storage services
   - Implement ConfigurationProvider for VSCode settings integration
   - Create storage mechanisms for custom prompts and shared prompt
   - Add default prompt creation on first installation
   - _Requirements: 2.1, 4.1, 4.3, 4.4_
 
-- [ ] 3.1 Write property test for configuration persistence
+- [x] 3.1 Write property test for configuration persistence
   - **Property 10: Configuration persistence**
   - **Validates: Requirements 2.1, 2.4, 5.5**
 
