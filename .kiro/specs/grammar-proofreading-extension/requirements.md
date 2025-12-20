@@ -2,109 +2,158 @@
 
 ## Introduction
 
-A VSCode extension that provides grammar correction and proofreading capabilities using Large Language Models (LLM). The extension integrates with OpenAI-compatible APIs to analyze and improve text quality through predefined prompts, returning structured corrections with explanations.
+A VSCode extension that provides AI-powered text correction capabilities using user-configurable custom prompts. Users can create, manage, and apply personalized correction prompts (such as grammar correction, logic reorganization, tense changes) through a flexible prompt management system with CRUD operations.
 
 ## Glossary
 
-- **Grammar_Extension**: The VSCode extension that provides grammar correction and proofreading functionality
-- **LLM_API**: OpenAI-compatible API service that processes text correction requests
-- **Correction_Button**: UI button element within a chat-style widget that triggers specific grammar correction prompts
-- **Chat_Widget**: VSCode panel that displays correction buttons and shows LLM responses in a conversational interface
-- **Selected_Text**: User-highlighted portion of Document_Text that will be processed instead of the entire document
-- **Document_Text**: The active text content in the VSCode editor
-- **Correction_Response**: Structured JSON response containing corrected text and explanation
-- **JSON_Schema**: Validation schema that defines the expected format of API responses
-- **Configuration_Settings**: User-configurable API endpoint and authentication settings
-- **Custom_Prompt**: User-defined name-prompt pairs that can be created, modified, and deleted through settings
-- **Prompt_Configuration**: VSCode settings interface that allows users to manage custom name-prompt pairs
-- **Settings_UI**: VSCode's native settings interface where extension configuration options are displayed
+- **Extension**: The VSCode grammar proofreading extension
+- **Custom Prompt**: A user-defined name-prompt pair for specific text correction tasks
+- **Shared Prompt**: A global prompt text that is automatically appended to all custom prompts
+- **CRUD Operations**: Create, Read, Update, Delete operations for managing custom prompts
+- **LLM API**: Large Language Model API service (OpenAI-compatible)
+- **Text Selection**: The currently selected text in the VSCode editor
+- **Correction Request**: An API request combining custom prompt, shared prompt, and selected text
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As a writer, I want to access grammar correction tools through a chat-style widget in VSCode, so that I can quickly improve my text quality and see LLM responses in a conversational interface.
+**User Story:** As a user, I want to create and manage custom prompts, so that I can define specific text correction tasks tailored to my needs.
 
 #### Acceptance Criteria
 
-1. WHEN the Grammar_Extension is activated, THE Grammar_Extension SHALL display a Chat_Widget with correction buttons
-2. WHEN a user clicks a Correction_Button, THE Grammar_Extension SHALL capture the current Document_Text or Selected_Text from the active editor
-3. WHEN text is captured, THE Grammar_Extension SHALL send the text and associated prompt to the configured LLM_API
-4. WHEN the LLM_API returns a response, THE Grammar_Extension SHALL validate the response against the JSON_Schema
-5. WHEN validation succeeds, THE Grammar_Extension SHALL display the LLM response as a message in the Chat_Widget
-6. WHEN the user reviews the response in the Chat_Widget, THE Grammar_Extension SHALL provide options to apply or dismiss the suggested corrections
+1. WHEN a user accesses the prompt management interface THEN the Extension SHALL display all existing custom prompts with their names and content
+2. WHEN a user creates a new custom prompt THEN the Extension SHALL validate the prompt name is unique and non-empty
+3. WHEN a user updates an existing custom prompt THEN the Extension SHALL preserve the prompt's unique identifier while updating the name and content
+4. WHEN a user deletes a custom prompt THEN the Extension SHALL remove it from storage and update the interface immediately
+5. WHERE at least one custom prompt exists, the Extension SHALL ensure prompt management operations remain available
 
 ### Requirement 2
 
-**User Story:** As a user, I want to configure the LLM API settings, so that I can connect to my preferred OpenAI-compatible service.
+**User Story:** As a user, I want to configure a shared prompt that applies to all corrections, so that I can establish consistent context or instructions across all my custom prompts.
 
 #### Acceptance Criteria
 
-1. WHEN a user accesses extension settings, THE Grammar_Extension SHALL provide configuration options for API endpoint and authentication
-2. WHEN invalid API credentials are provided, THE Grammar_Extension SHALL display clear error messages and prevent API calls
-3. WHEN API configuration is updated, THE Grammar_Extension SHALL validate the connection before saving settings
-4. WHEN API calls fail due to network issues, THE Grammar_Extension SHALL handle errors gracefully and inform the user
+1. WHEN a user configures the shared prompt THEN the Extension SHALL store it in the extension settings
+2. WHEN a correction request is made THEN the Extension SHALL append the shared prompt to the selected custom prompt
+3. WHEN the shared prompt is empty THEN the Extension SHALL use only the custom prompt without additional text
+4. WHEN the shared prompt is updated THEN the Extension SHALL apply the changes to all subsequent correction requests
+5. THE Extension SHALL provide a dedicated settings interface for editing the shared prompt with validation and preview capabilities
 
 ### Requirement 3
 
-**User Story:** As a content creator, I want to see explanations for grammar corrections in the chat widget, so that I can learn from the changes and improve my writing skills.
+**User Story:** As a user, I want to apply custom prompts to selected text in the editor, so that I can perform specific text corrections using my configured prompts.
 
 #### Acceptance Criteria
 
-1. WHEN the LLM_API returns a Correction_Response, THE Grammar_Extension SHALL extract both corrected text and explanation
-2. WHEN a response is received, THE Grammar_Extension SHALL display the explanation and corrected text as a message in the Chat_Widget
-3. WHEN multiple corrections are made, THE Grammar_Extension SHALL provide explanations for each significant change in the Chat_Widget message
-4. WHEN no corrections are needed, THE Grammar_Extension SHALL display a message in the Chat_Widget informing the user that the text is already well-written
+1. WHEN a user selects text and chooses a custom prompt THEN the Extension SHALL combine the custom prompt with the shared prompt
+2. WHEN a correction request is sent THEN the Extension SHALL include the selected text, combined prompt, and API configuration
+3. WHEN the LLM API responds THEN the Extension SHALL replace the selected text with the corrected version
+4. WHEN no text is selected THEN the Extension SHALL prevent prompt execution and display an appropriate message
+5. WHEN an API error occurs THEN the Extension SHALL display the error message and maintain the original text
 
 ### Requirement 4
 
-**User Story:** As a developer, I want the extension to validate API responses using JSON schema, so that I can ensure data integrity and handle malformed responses appropriately.
+**User Story:** As a user, I want the extension to ensure at least one custom prompt exists, so that I can always perform text corrections without additional setup.
 
 #### Acceptance Criteria
 
-1. WHEN the LLM_API returns a response, THE Grammar_Extension SHALL validate the response structure against the predefined JSON_Schema
-2. WHEN response validation fails, THE Grammar_Extension SHALL log the error and display a user-friendly message
-3. WHEN the response contains required fields (corrected text and explanation), THE Grammar_Extension SHALL proceed with text replacement
-4. WHEN the response is missing required fields, THE Grammar_Extension SHALL reject the response and maintain the original text
-5. WHEN parsing JSON responses, THE Grammar_Extension SHALL handle malformed JSON gracefully
+1. WHEN the extension is first installed THEN the Extension SHALL create default custom prompts for common correction types
+2. WHEN all custom prompts are deleted THEN the Extension SHALL prevent the deletion and maintain at least one prompt
+3. WHEN the extension starts THEN the Extension SHALL verify at least one custom prompt exists in storage
+4. THE Extension SHALL provide default prompts for grammar correction, logic reorganization, and tense changes
+5. WHEN default prompts are created THEN the Extension SHALL use descriptive names and effective prompt content
 
 ### Requirement 5
 
-**User Story:** As a user, I want to work with selected text portions, so that I can focus corrections on specific parts of my document without processing the entire content.
+**User Story:** As a user, I want to configure API settings for LLM integration, so that I can connect to my preferred AI service for text corrections.
 
 #### Acceptance Criteria
 
-1. WHEN a user selects text in the editor and clicks a Correction_Button, THE Grammar_Extension SHALL process only the Selected_Text
-2. WHEN no text is selected and a Correction_Button is clicked, THE Grammar_Extension SHALL process the entire Document_Text
-3. WHEN Selected_Text is processed, THE Grammar_Extension SHALL send only the selected portion to the LLM_API
-4. WHEN corrections are applied to Selected_Text, THE Grammar_Extension SHALL replace only the selected portion in the editor
-5. WHEN Selected_Text corrections are displayed in the Chat_Widget, THE Grammar_Extension SHALL clearly indicate which portion of text was processed
+1. WHEN a user configures API settings THEN the Extension SHALL validate the API endpoint URL format
+2. WHEN API credentials are provided THEN the Extension SHALL store them securely in VSCode settings
+3. WHEN API configuration is invalid THEN the Extension SHALL display clear error messages and prevent requests
+4. THE Extension SHALL support OpenAI-compatible API endpoints including OpenAI, Azure OpenAI, and local servers
+5. WHEN API settings are updated THEN the Extension SHALL apply changes to subsequent correction requests
 
 ### Requirement 6
 
-**User Story:** As a user, I want to create and manage custom name-prompt pairs through VSCode settings, so that I can define my own correction types and prompts that match my specific needs.
+**User Story:** As a user, I want visual feedback during correction operations, so that I understand the current status and can track progress.
 
 #### Acceptance Criteria
 
-1. WHEN a user accesses VSCode settings, THE Grammar_Extension SHALL provide an interface to create, edit, and delete custom name-prompt pairs
-2. WHEN a user creates a new name-prompt pair, THE Grammar_Extension SHALL add a corresponding Correction_Button to the Chat_Widget
-3. WHEN a user modifies an existing name-prompt pair, THE Grammar_Extension SHALL update the button label and associated prompt
-4. WHEN a user deletes a name-prompt pair, THE Grammar_Extension SHALL remove the corresponding Correction_Button from the Chat_Widget
-5. WHEN custom prompts are configured, THE Grammar_Extension SHALL persist all name-prompt pairs in VSCode settings
-6. WHEN the Chat_Widget loads, THE Grammar_Extension SHALL display Correction_Buttons for all configured name-prompt pairs
-7. WHEN invalid prompt content is provided, THE Grammar_Extension SHALL validate the input and display appropriate error messages
-8. WHEN duplicate names are entered, THE Grammar_Extension SHALL prevent creation and display a conflict error message
+1. WHEN a correction request starts THEN the Extension SHALL display a progress indicator
+2. WHEN a correction request completes successfully THEN the Extension SHALL hide the progress indicator and show success feedback
+3. WHEN a correction request fails THEN the Extension SHALL display an error notification with details
+4. WHEN multiple requests are in progress THEN the Extension SHALL handle them independently without interference
+5. THE Extension SHALL provide clear status messages throughout the correction process
 
 ### Requirement 7
 
-**User Story:** As a user, I want a chat-style interface for viewing LLM responses, so that I can easily review corrections and maintain a conversation history with the AI assistant.
+**User Story:** As a user, I want to access custom prompts through VSCode's interface, so that I can easily apply corrections without leaving my editing workflow.
 
 #### Acceptance Criteria
 
-1. WHEN the Grammar_Extension is activated, THE Grammar_Extension SHALL display a Chat_Widget as a VSCode panel
-2. WHEN a correction request is made, THE Grammar_Extension SHALL display the user's request context in the Chat_Widget
-3. WHEN the LLM_API returns a response, THE Grammar_Extension SHALL display the response as a message in the Chat_Widget with proper formatting
-4. WHEN multiple correction requests are made, THE Grammar_Extension SHALL maintain a conversation history in the Chat_Widget
-5. WHEN LLM responses contain corrected text, THE Grammar_Extension SHALL provide action buttons to apply or dismiss the corrections
-6. WHEN the Chat_Widget displays messages, THE Grammar_Extension SHALL clearly distinguish between user requests and LLM responses
-7. WHEN the Chat_Widget is closed and reopened, THE Grammar_Extension SHALL preserve the conversation history for the current session
+1. WHEN a user right-clicks on selected text THEN the Extension SHALL display custom prompts in the context menu
+2. WHEN a user opens the command palette THEN the Extension SHALL list all available custom prompts as commands
+3. WHEN custom prompts are updated THEN the Extension SHALL refresh the available commands immediately
+4. THE Extension SHALL organize prompts in a logical order in menus and command palette
+5. WHEN a prompt is selected from any interface THEN the Extension SHALL execute the correction using that prompt
+
+### Requirement 8
+
+**User Story:** As a user, I want to apply corrections to entire documents when no text is selected, so that I can process complete files efficiently.
+
+#### Acceptance Criteria
+
+1. WHEN a user chooses a custom prompt without selecting text THEN the Extension SHALL apply the correction to all text in the active editor
+2. WHEN processing entire document content THEN the Extension SHALL preserve the document's original formatting and structure
+3. WHEN the document is empty THEN the Extension SHALL display an appropriate message and take no action
+4. WHEN the document is very large THEN the Extension SHALL warn the user before processing and allow cancellation
+5. THE Extension SHALL replace the entire document content with the corrected version upon successful completion
+
+### Requirement 9
+
+**User Story:** As a user, I want a chat widget interface for interacting with custom prompts, so that I can see LLM responses and manage correction tasks in a dedicated panel.
+
+#### Acceptance Criteria
+
+1. WHEN the chat widget is opened THEN the Extension SHALL display buttons corresponding to each custom prompt
+2. WHEN a user clicks a prompt button THEN the Extension SHALL submit the correction task and display the request in the chat
+3. WHEN the LLM responds THEN the Extension SHALL display the response in the chat widget with clear formatting
+4. WHEN custom prompts are updated THEN the Extension SHALL refresh the prompt buttons in the chat widget immediately
+5. THE Extension SHALL maintain a conversation history showing requests and responses with timestamps
+
+### Requirement 10
+
+**User Story:** As a user, I want the extension to prevent conflicting tasks on the same text selection, so that I can avoid conflicts while allowing parallel work on different parts of documents.
+
+#### Acceptance Criteria
+
+1. WHEN a correction task is running on a text selection THEN the Extension SHALL prevent new tasks on overlapping selections in the same document
+2. WHEN a user attempts to start a task on an overlapping selection THEN the Extension SHALL display a message indicating the selection is currently being processed
+3. WHEN tasks are running on non-overlapping selections THEN the Extension SHALL allow them to proceed independently
+4. WHEN tasks are running on different documents THEN the Extension SHALL allow them to proceed without restriction
+5. WHEN a task completes or fails THEN the Extension SHALL immediately allow new tasks on that selection
+
+### Requirement 11
+
+**User Story:** As a user, I want a dedicated settings interface for managing prompts, so that I can easily configure both custom prompts and the shared prompt in one place.
+
+#### Acceptance Criteria
+
+1. WHEN a user opens the prompt settings THEN the Extension SHALL display both custom prompt management and shared prompt configuration
+2. WHEN a user edits the shared prompt THEN the Extension SHALL provide real-time validation and character count feedback
+3. WHEN the shared prompt exceeds length limits THEN the Extension SHALL prevent saving and display validation errors
+4. THE Extension SHALL provide a preview feature showing how the shared prompt combines with custom prompts
+5. WHEN prompt settings are saved THEN the Extension SHALL immediately apply changes to all active interfaces
+
+**User Story:** As a user, I want the extension to prevent conflicting tasks on the same text selection, so that I can avoid conflicts while allowing parallel work on different parts of documents.
+
+#### Acceptance Criteria
+
+1. WHEN a correction task is running on a text selection THEN the Extension SHALL prevent new tasks on overlapping selections in the same document
+2. WHEN a user attempts to start a task on an overlapping selection THEN the Extension SHALL display a message indicating the selection is currently being processed
+3. WHEN tasks are running on non-overlapping selections THEN the Extension SHALL allow them to proceed independently
+4. WHEN tasks are running on different documents THEN the Extension SHALL allow them to proceed without restriction
+5. WHEN a task completes or fails THEN the Extension SHALL immediately allow new tasks on that selection

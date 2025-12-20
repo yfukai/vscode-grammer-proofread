@@ -1,0 +1,65 @@
+{
+  "name": "grammar-proofreading-extension",
+  "displayName": "Grammar Proofreading Extension",
+  "description": "AI-powered text correction with custom prompts",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [],
+    "menus": {},
+    "configuration": {
+      "title": "Grammar Proofreading",
+      "properties": {
+        "grammarProofreading.sharedPrompt": {
+          "type": "string",
+          "default": "",
+          "description": "Shared prompt text appended to all custom prompts"
+        },
+        "grammarProofreading.apiEndpoint": {
+          "type": "string",
+          "default": "https://api.openai.com/v1/chat/completions",
+          "description": "LLM API endpoint URL"
+        },
+        "grammarProofreading.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for LLM service"
+        },
+        "grammarProofreading.model": {
+          "type": "string",
+          "default": "gpt-3.5-turbo",
+          "description": "LLM model to use"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4",
+    "jest": "^29.3.1",
+    "@types/jest": "^29.2.4",
+    "ts-jest": "^29.0.3",
+    "fast-check": "^3.5.0"
+  }
+}

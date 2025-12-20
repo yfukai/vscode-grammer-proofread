@@ -2,370 +2,299 @@
 
 ## Overview
 
-The Grammar Proofreading Extension is a VSCode extension that integrates Large Language Model capabilities directly into the editor workflow through a chat-style interface. The extension provides a conversational interface for grammar correction and proofreading through user-configurable name-prompt pairs, leveraging OpenAI-compatible APIs to deliver intelligent text improvements with explanatory feedback displayed in a chat widget.
-
-The extension follows VSCode's extension architecture patterns, utilizing the Extension API for UI integration, workspace management, and configuration handling. The design emphasizes user experience through a chat-style interface, support for text selection processing, and robust error handling with conversational feedback.
+The Grammar Proofreading Extension is a VSCode extension that provides AI-powered text correction through user-configurable custom prompts. The system enables users to create, manage, and apply personalized correction prompts with full CRUD operations, while maintaining a configurable shared prompt that applies to all corrections. The extension features a chat widget interface for interactive prompt execution and ensures single-task concurrency for predictable behavior.
 
 ## Architecture
 
-The extension follows a layered architecture pattern:
+The extension follows a layered architecture with clear separation of concerns:
 
-```
-┌─────────────────────────────────────┐
-│           VSCode Extension          │
-├─────────────────────────────────────┤
-│  UI Layer (Chat Widget & Buttons)   │
-├─────────────────────────────────────┤
-│  Service Layer (Correction Logic)   │
-├─────────────────────────────────────┤
-│  API Layer (LLM Communication)      │
-├─────────────────────────────────────┤
-│  Configuration Layer (Settings)     │
-└─────────────────────────────────────┘
-```
+### Core Layers
 
-**Key Architectural Principles:**
-- Separation of concerns between UI, business logic, and external API communication
-- Dependency injection for testability and modularity
-- Event-driven communication between components
-- Graceful degradation when API services are unavailable
+1. **UI Layer**: VSCode integration, chat widget, context menus, and command palette
+2. **Service Layer**: Business logic for prompt management, correction orchestration, and API communication
+3. **Storage Layer**: VSCode settings and workspace state management
+4. **API Layer**: LLM service integration with request/response handling
+
+### Key Architectural Principles
+
+- **Single Responsibility**: Each component handles one specific concern
+- **Dependency Injection**: Services are injected to enable testing and flexibility
+- **Event-Driven**: UI components react to state changes through events
+- **Immutable State**: Configuration and prompt data are treated as immutable
+- **Error Boundaries**: Each layer handles its own errors and provides meaningful feedback
 
 ## Components and Interfaces
 
-### Extension Entry Point
-- **ExtensionActivator**: Main extension activation handler
-- **CommandRegistry**: Registers VSCode commands for correction buttons
-- **StatusBarManager**: Manages extension status indicators
+### Prompt Management System
 
-### UI Components
-- **ChatWidget**: Main chat-style interface panel for displaying correction buttons and LLM responses
-- **CorrectionButtonProvider**: Creates and manages correction buttons within the chat widget
-- **MessageRenderer**: Handles rendering of chat messages, user requests, and LLM responses
-- **ConversationManager**: Manages chat history and message threading
-- **NotificationManager**: Handles user notifications and explanations
-- **ProgressIndicator**: Shows correction progress during API calls
-
-### Core Services
-- **CorrectionService**: Orchestrates the correction workflow
-- **TextProcessor**: Handles text extraction (full document or selection) and replacement in editors
-- **SelectionManager**: Manages text selection detection and processing
-- **ValidationService**: Validates API responses against JSON schema
-
-### API Integration
-- **LLMApiClient**: Handles communication with OpenAI-compatible APIs
-- **RequestBuilder**: Constructs API requests with prompts and text
-- **ResponseParser**: Parses and validates API responses
-
-### Configuration Management
-- **ConfigurationProvider**: Manages extension settings and API configuration
-- **PromptManager**: Handles user-configurable name-prompt pairs with CRUD operations
-- **SettingsProvider**: Manages VSCode settings integration for custom prompt configuration
-
-## Data Models
-
-### CorrectionRequest
 ```typescript
-interface CorrectionRequest {
-  text: string;
-  prompt: string;
-  promptName: string;
-  isSelection: boolean;
-  selectionRange?: {
-    start: number;
-    end: number;
-  };
-  apiEndpoint: string;
-  apiKey: string;
+interface CustomPrompt {
+  id: string;
+  name: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PromptConfiguration {
+  customPrompts: CustomPrompt[];
+  sharedPrompt: string;
+}
+
+class PromptManager {
+  createPrompt(name: string, content: string): CustomPrompt
+  updatePrompt(id: string, name: string, content: string): CustomPrompt
+  deletePrompt(id: string): void
+  getPrompts(): CustomPrompt[]
+  getSharedPrompt(): string
+  setSharedPrompt(content: string): void
+  validateSharedPrompt(content: string): boolean
+}
+
+interface PromptSettingsUI {
+  showCustomPrompts(): void
+  showSharedPromptEditor(): void
+  onSharedPromptChange(callback: (newContent: string) => void): void
 }
 ```
 
-### CorrectionResponse
+### Task Management System
+
 ```typescript
-interface CorrectionResponse {
-  correctedText: string;
-  explanation: string;
-  changes: TextChange[];
-  confidence: number;
+interface TaskManager {
+  canStartTask(selection: TextSelection): boolean
+  startTask(selection: TextSelection): string // returns task ID
+  completeTask(taskId: string): void
+  getConflictingTasks(selection: TextSelection): ActiveTask[]
+  isSelectionOverlapping(sel1: TextSelection, sel2: TextSelection): boolean
+}
+
+class SelectionTracker {
+  private activeTasks: Map<string, ActiveTask> = new Map()
+  
+  isOverlapping(selection1: TextSelection, selection2: TextSelection): boolean {
+    // Different documents never overlap
+    if (selection1.documentUri !== selection2.documentUri) return false
+    
+    // Check line and character overlap
+    return !(selection1.endLine < selection2.startLine || 
+             selection2.endLine < selection1.startLine ||
+             (selection1.endLine === selection2.startLine && selection1.endCharacter <= selection2.startCharacter) ||
+             (selection2.endLine === selection1.startLine && selection2.endCharacter <= selection1.startCharacter))
+  }
 }
 ```
 
-### TextChange
-```typescript
-interface TextChange {
-  original: string;
-  corrected: string;
-  reason: string;
-  position: {
-    start: number;
-    end: number;
-  };
-}
-```
+### Chat Widget System
 
-### ChatMessage
 ```typescript
 interface ChatMessage {
   id: string;
-  type: 'user' | 'assistant';
+  type: 'request' | 'response' | 'error';
   content: string;
+  promptName: string;
   timestamp: Date;
-  promptName?: string;
-  isSelection?: boolean;
-  selectionRange?: {
-    start: number;
-    end: number;
-  };
-  actions?: MessageAction[];
+}
+
+class ChatWidget {
+  showPromptButtons(prompts: CustomPrompt[]): void
+  addMessage(message: ChatMessage): void
+  clearHistory(): void
+  setTaskRunning(isRunning: boolean): void
 }
 ```
 
-### MessageAction
+### Correction Service
+
 ```typescript
-interface MessageAction {
+interface TextSelection {
+  documentUri: string;
+  startLine: number;
+  startCharacter: number;
+  endLine: number;
+  endCharacter: number;
+}
+
+interface CorrectionRequest {
+  promptId: string;
+  text: string;
+  selection: TextSelection;
+  isFullDocument: boolean;
+}
+
+interface CorrectionResponse {
+  correctedText: string;
+  explanation?: string;
+}
+
+interface ActiveTask {
   id: string;
-  label: string;
-  type: 'apply' | 'dismiss' | 'copy';
-  data?: any;
+  selection: TextSelection;
+  startTime: Date;
+}
+
+class CorrectionService {
+  executeCorrection(request: CorrectionRequest): Promise<CorrectionResponse>
+  isSelectionBlocked(selection: TextSelection): boolean
+  getActiveTasks(): ActiveTask[]
+  cancelTask(taskId: string): void
 }
 ```
 
-### ExtensionConfiguration
+### API Integration
+
 ```typescript
-interface ExtensionConfiguration {
-  apiEndpoint: string;
+interface LLMApiConfiguration {
+  endpoint: string;
   apiKey: string;
   model: string;
   maxTokens: number;
   temperature: number;
-  customPrompts: NamePromptPair[];
+}
+
+class LLMApiClient {
+  sendRequest(prompt: string, text: string): Promise<string>
+  validateConfiguration(): boolean
 }
 ```
 
-### NamePromptPair
-```typescript
-interface NamePromptPair {
-  id: string;
-  name: string;
-  prompt: string;
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-```
+## Data Models
 
-### ConversationHistory
-```typescript
-interface ConversationHistory {
-  messages: ChatMessage[];
-  sessionId: string;
-  createdAt: Date;
-  lastActivity: Date;
-}
-```
+### Custom Prompt Model
+
+- **ID**: Unique identifier (UUID)
+- **Name**: User-friendly display name (1-100 characters, unique)
+- **Content**: Prompt text (1-2000 characters)
+- **Timestamps**: Creation and modification dates
+- **Validation**: Name uniqueness, content length limits
+
+### Configuration Model
+
+- **Custom Prompts**: Array of CustomPrompt objects
+- **Shared Prompt**: Global prompt text (0-2000 characters, user-configurable through settings UI)
+- **API Settings**: LLM service configuration
+- **UI Preferences**: Chat widget visibility, button layout, prompt settings panel
+- **Active Tasks**: Map of task IDs to TextSelection objects for concurrency control
+
+### Chat History Model
+
+- **Messages**: Ordered list of ChatMessage objects
+- **Session Management**: Persistence across VSCode sessions
+- **Size Limits**: Maximum 100 messages, auto-cleanup of oldest
 
 ## Correctness Properties
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+### Property Reflection
 
-Property 1: Button click captures correct text based on selection state
-*For any* correction button click with an active editor, the extension should capture the selected text if a selection exists, otherwise capture the entire document text
-**Validates: Requirements 1.2, 5.1, 5.2**
+After reviewing all properties identified in the prework, I've identified several areas of redundancy:
 
-Property 2: Text capture triggers API request with correct prompt
-*For any* captured text and prompt name, the extension should send the text with the associated prompt to the configured LLM API
-**Validates: Requirements 1.3**
+- Properties 2.2 and 3.1 both test prompt combination logic - these can be combined
+- Properties 1.4 and 7.3 both test UI refresh after prompt updates - these can be combined  
+- Properties 6.1, 6.2, and 10.1 all test UI state management during tasks - these can be streamlined
+- Properties 7.1, 7.2, and 9.1 all test prompt display in different interfaces - these can be consolidated
 
-Property 3: API response validation occurs
-*For any* LLM API response, the extension should validate the response structure against the predefined JSON schema
-**Validates: Requirements 1.4, 4.1**
+The following properties provide unique validation value and will be implemented:
 
-Property 4: Valid responses display in chat widget with actions
-*For any* successfully validated API response, the extension should display the response as a message in the chat widget with action buttons to apply or dismiss corrections
-**Validates: Requirements 1.5, 1.6, 3.2, 7.3**
+**Property 1: Prompt CRUD operations maintain data integrity**
+*For any* sequence of create, update, and delete operations on custom prompts, the system should maintain data consistency with unique IDs, unique names, and proper storage synchronization
+**Validates: Requirements 1.1, 1.2, 1.3, 1.4**
 
-Property 5: Invalid credentials prevent API calls
-*For any* invalid API credentials, the extension should display error messages and prevent API calls from being made
-**Validates: Requirements 2.2**
+**Property 2: Prompt combination consistency**
+*For any* custom prompt and shared prompt combination, the final prompt sent to the LLM should always be the custom prompt content followed by the shared prompt content
+**Validates: Requirements 2.2, 3.1**
 
-Property 6: Configuration updates trigger validation
-*For any* API configuration update, the extension should validate the connection before saving the new settings
-**Validates: Requirements 2.3**
-
-Property 7: Network errors are handled gracefully
-*For any* network failure during API calls, the extension should handle the error gracefully and inform the user
-**Validates: Requirements 2.4**
-
-Property 8: Correction responses extract required data
-*For any* valid correction response from the LLM API, the extension should extract both corrected text and explanation
-**Validates: Requirements 3.1**
-
-Property 9: Multiple corrections provide individual explanations
-*For any* correction response with multiple changes, the extension should provide explanations for each significant change in the chat widget message
-**Validates: Requirements 3.3**
-
-Property 10: Validation failures are logged and reported
-*For any* response validation failure, the extension should log the error and display a user-friendly message
+**Property 3: Minimum prompt invariant**
+*For any* state of the system, there should always be at least one custom prompt available, and deletion operations should be prevented when only one prompt remains
 **Validates: Requirements 4.2**
 
-Property 11: Valid responses proceed to processing
-*For any* response containing required fields (corrected text and explanation), the extension should proceed with displaying the correction in the chat widget
-**Validates: Requirements 4.3**
+**Property 4: Text replacement accuracy**
+*For any* selected text and LLM response, the corrected text should replace exactly the selected portion without affecting surrounding content
+**Validates: Requirements 3.3**
 
-Property 12: Missing fields cause response rejection
-*For any* response missing required fields, the extension should reject the response and maintain the original text
-**Validates: Requirements 4.4**
+**Property 5: API configuration validation**
+*For any* API configuration input, invalid URLs, missing credentials, or malformed settings should be rejected with appropriate error messages
+**Validates: Requirements 5.1, 5.3**
 
-Property 13: Malformed JSON is handled gracefully
-*For any* malformed JSON response, the extension should handle the parsing error gracefully without crashing
-**Validates: Requirements 4.5**
+**Property 6: Selection-based concurrency control**
+*For any* text selection in any document, only one correction task should be allowed on that specific selection, while non-overlapping selections in the same document or selections in different documents should be allowed to run concurrently
+**Validates: Requirements 10.1, 10.2, 10.3**
 
-Property 14: Selection processing sends only selected text
-*For any* text selection and correction request, the extension should send only the selected portion to the LLM API
-**Validates: Requirements 5.3**
+**Property 7: UI synchronization consistency**
+*For any* change to custom prompts, all user interfaces (context menus, command palette, chat widget) should reflect the updated prompt list immediately
+**Validates: Requirements 7.3, 9.4**
 
-Property 15: Selection corrections replace only selected portion
-*For any* correction applied to selected text, the extension should replace only the selected portion in the editor
-**Validates: Requirements 5.4**
+**Property 8: Full document processing preservation**
+*For any* document content, when applying corrections to the entire document, the operation should preserve the document structure while updating the text content
+**Validates: Requirements 8.1, 8.2, 8.5**
 
-Property 16: Selection corrections indicate processed portion
-*For any* selected text correction displayed in the chat widget, the message should clearly indicate which portion of text was processed
-**Validates: Requirements 5.5**
+**Property 9: Chat history management**
+*For any* sequence of correction requests and responses, the chat widget should maintain chronological order with proper timestamps and message formatting
+**Validates: Requirements 9.2, 9.3, 9.5**
 
-Property 17: Name-prompt pair creation adds button
-*For any* new name-prompt pair created in settings, the extension should add a corresponding correction button to the chat widget
-**Validates: Requirements 6.2**
-
-Property 18: Name-prompt pair modification updates button
-*For any* existing name-prompt pair modification, the extension should update the button label and associated prompt
-**Validates: Requirements 6.3**
-
-Property 19: Name-prompt pair deletion removes button
-*For any* name-prompt pair deletion, the extension should remove the corresponding correction button from the chat widget
-**Validates: Requirements 6.4**
-
-Property 20: Name-prompt configuration round-trip
-*For any* set of name-prompt pairs configured in settings, saving and reloading the chat widget should display correction buttons for all configured pairs
-**Validates: Requirements 6.5, 6.6**
-
-Property 21: Invalid prompt content is validated
-*For any* invalid prompt content provided in settings, the extension should validate the input and display appropriate error messages
-**Validates: Requirements 6.7**
-
-Property 22: Duplicate names are prevented
-*For any* attempt to create a name-prompt pair with a duplicate name, the extension should prevent creation and display a conflict error message
-**Validates: Requirements 6.8**
-
-Property 23: Correction requests display in chat
-*For any* correction request made, the extension should display the user's request context in the chat widget
-**Validates: Requirements 7.2**
-
-Property 24: Conversation history is maintained
-*For any* sequence of multiple correction requests, the extension should maintain a conversation history in the chat widget
-**Validates: Requirements 7.4**
-
-Property 25: Messages are visually distinguished
-*For any* message displayed in the chat widget, the extension should clearly distinguish between user requests and LLM responses
-**Validates: Requirements 7.6**
-
-Property 26: Session history persists across widget lifecycle
-*For any* conversation history in the current session, closing and reopening the chat widget should preserve the conversation history
-**Validates: Requirements 7.7**
-
-## VSCode Settings Integration
-
-The extension integrates with VSCode's native settings system to provide configurable name-prompt pairs:
-
-**Settings Schema Definition:**
-- Extension contributes settings through `package.json` configuration
-- Custom name-prompt pairs stored as an array of objects in settings
-- Each pair includes name, prompt, description, and metadata fields
-- Validation rules ensure unique names and non-empty prompt content
-
-**Settings UI Features:**
-- Native VSCode settings interface for managing name-prompt pairs
-- Array-based settings UI for adding, editing, and removing pairs
-- Clear descriptions and validation for each field
-- Real-time validation with error messaging for invalid inputs
-- Duplicate name detection and prevention
-
-**Configuration Persistence:**
-- Name-prompt pairs stored in VSCode's configuration system
-- Changes automatically persisted across sessions
-- Workspace-specific overrides supported for team configurations
-- Migration support for upgrading from fixed prompt categories
-
-**Chat Widget Integration:**
-- Dynamic button generation based on configured name-prompt pairs
-- Real-time updates when settings change
-- Fallback to default prompts when no custom pairs are configured
-- Button labels match the configured names exactly
+**Property 10: Configuration persistence**
+*For any* changes to shared prompts or API settings, the configuration should be stored immediately and applied to all subsequent operations
+**Validates: Requirements 2.1, 2.4, 5.5**
 
 ## Error Handling
 
-The extension implements comprehensive error handling across all layers:
+### Error Categories
 
-**API Communication Errors:**
-- Network timeouts and connection failures
-- Invalid API responses and malformed JSON
-- Authentication and authorization errors
-- Rate limiting and quota exceeded scenarios
+1. **Validation Errors**: Invalid prompt names, empty content, malformed API configurations
+2. **API Errors**: Network failures, authentication issues, rate limiting, service unavailable
+3. **System Errors**: Storage failures, extension crashes, VSCode API issues
+4. **User Errors**: No text selected, concurrent task attempts, invalid operations
 
-**Validation Errors:**
-- JSON schema validation failures
-- Missing required response fields
-- Invalid configuration parameters
-- Malformed prompt templates
+### Error Handling Strategy
 
-**Editor Integration Errors:**
-- No active editor available
-- Read-only documents
-- Large document handling
-- Concurrent modification conflicts
+- **Graceful Degradation**: System continues operating with reduced functionality when possible
+- **User Feedback**: Clear, actionable error messages with suggested solutions
+- **State Recovery**: Automatic recovery from transient errors, manual recovery options for persistent issues
+- **Logging**: Comprehensive error logging for debugging and support
 
-**User Experience Errors:**
-- Clear error messages without technical jargon
-- Graceful degradation when services are unavailable
-- Retry mechanisms for transient failures
-- Fallback behaviors for critical operations
+### Specific Error Scenarios
+
+- **API Timeout**: Display timeout message, allow retry, preserve original text
+- **Invalid Prompt**: Prevent save operation, highlight validation errors, suggest corrections
+- **Storage Failure**: Use in-memory fallback, warn user about persistence issues
+- **Concurrent Task**: Block new requests, display clear status message, provide cancel option
 
 ## Testing Strategy
 
-### Unit Testing Approach
-The extension uses Jest for unit testing with the following focus areas:
-- Configuration validation and management
-- JSON schema validation logic
-- Text processing and replacement functions
-- API request construction and response parsing
-- Error handling and edge cases
+### Dual Testing Approach
 
-### Property-Based Testing Approach
-The extension uses fast-check for property-based testing to verify correctness properties:
-- **Minimum iterations**: 100 test cases per property
-- **Test tagging**: Each property test includes a comment with the format '**Feature: grammar-proofreading-extension, Property {number}: {property_text}**'
-- **Coverage focus**: Universal behaviors that should hold across all valid inputs
-- **Generator strategy**: Smart generators that create realistic text content, API responses, and configuration scenarios
+The extension will use both unit testing and property-based testing to ensure comprehensive coverage:
 
-**Property Test Categories:**
-1. **Text Processing Properties**: Verify text capture (full document vs selection), replacement, and preservation behaviors
-2. **API Integration Properties**: Validate request construction and response handling
-3. **Configuration Properties**: Test settings validation and connection management
-4. **Name-Prompt Configuration Properties**: Verify custom name-prompt pair CRUD operations and persistence
-5. **Chat Widget Properties**: Verify message display, conversation history, and UI state management
-6. **Selection Handling Properties**: Verify correct processing of selected vs full document text
-7. **Error Handling Properties**: Ensure consistent error behavior across failure scenarios
-8. **UI Interaction Properties**: Verify button behavior, action buttons, and user feedback mechanisms
+- **Unit Tests**: Verify specific examples, edge cases, and integration points between components
+- **Property Tests**: Verify universal properties that should hold across all inputs using fast-check library
+- **Integration Tests**: Test complete workflows and VSCode API integration
 
-### Integration Testing
-- VSCode extension host testing for UI integration
-- Mock API server testing for end-to-end workflows
-- Configuration persistence testing
-- Multi-editor scenario testing
+### Property-Based Testing Requirements
 
-### Testing Framework Requirements
-- **Unit Testing**: Jest with VSCode extension testing utilities
-- **Property-Based Testing**: fast-check library for TypeScript
-- **Mocking**: Sinon.js for API and VSCode API mocking
-- **Coverage**: Istanbul for code coverage reporting
-- **CI Integration**: GitHub Actions for automated testing
+- **Library**: fast-check for TypeScript property-based testing
+- **Iterations**: Minimum 100 iterations per property test to ensure thorough coverage
+- **Tagging**: Each property test tagged with format: `**Feature: grammar-proofreading-extension, Property {number}: {property_text}**`
+- **Coverage**: Each correctness property implemented by exactly one property-based test
 
-The dual testing approach ensures both specific functionality works correctly (unit tests) and universal properties hold across all scenarios (property tests), providing comprehensive validation of the extension's correctness.
+### Unit Testing Focus Areas
+
+- Component initialization and configuration
+- API request/response handling
+- UI event handling and state management
+- Error boundary testing
+- VSCode extension lifecycle events
+
+### Test Organization
+
+- Service layer tests in `src/services/__tests__/`
+- UI component tests in `src/ui/__tests__/`
+- Integration tests in `src/test/`
+- Property-based tests co-located with unit tests
+- Mock configurations for API testing
+
+### Testing Tools
+
+- **Jest**: Primary testing framework with ts-jest preset
+- **fast-check**: Property-based testing library
+- **VSCode Test Runner**: Integration testing with VSCode APIs
+- **Mock Services**: Isolated testing of individual components
