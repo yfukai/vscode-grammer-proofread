@@ -5,7 +5,7 @@ import { SelectionTracker } from './SelectionTracker';
  * Simple ID generator for tasks
  */
 function generateTaskId(): string {
-  return `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
@@ -13,6 +13,8 @@ function generateTaskId(): string {
  */
 export class TaskManager {
   private selectionTracker: SelectionTracker;
+  private totalTasksStarted: number = 0;
+  private totalTasksCompleted: number = 0;
 
   constructor(selectionTracker?: SelectionTracker) {
     this.selectionTracker = selectionTracker || new SelectionTracker();
@@ -46,6 +48,7 @@ export class TaskManager {
     };
 
     this.selectionTracker.addTask(task);
+    this.totalTasksStarted++;
     return taskId;
   }
 
@@ -55,6 +58,7 @@ export class TaskManager {
    */
   completeTask(taskId: string): void {
     this.selectionTracker.removeTask(taskId);
+    this.totalTasksCompleted++;
   }
 
   /**
@@ -90,6 +94,7 @@ export class TaskManager {
    */
   cancelTask(taskId: string): void {
     this.selectionTracker.removeTask(taskId);
+    this.totalTasksCompleted++;
   }
 
   /**
@@ -97,5 +102,29 @@ export class TaskManager {
    */
   clearAllTasks(): void {
     this.selectionTracker.clear();
+  }
+
+  /**
+   * Gets the total number of tasks started
+   * @returns Total tasks started count
+   */
+  getTotalTasksStarted(): number {
+    return this.totalTasksStarted;
+  }
+
+  /**
+   * Gets the total number of tasks completed
+   * @returns Total tasks completed count
+   */
+  getTotalTasksCompleted(): number {
+    return this.totalTasksCompleted;
+  }
+
+  /**
+   * Resets statistics counters
+   */
+  resetStatistics(): void {
+    this.totalTasksStarted = 0;
+    this.totalTasksCompleted = 0;
   }
 }
