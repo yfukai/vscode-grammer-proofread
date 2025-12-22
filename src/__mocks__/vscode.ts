@@ -15,11 +15,34 @@ export const workspace = {
 export const window = {
     showErrorMessage: jest.fn(),
     showInformationMessage: jest.fn(),
-    showWarningMessage: jest.fn()
+    showWarningMessage: jest.fn(),
+    createStatusBarItem: jest.fn(() => ({
+        text: '',
+        tooltip: '',
+        show: jest.fn(),
+        hide: jest.fn(),
+        dispose: jest.fn()
+    })),
+    createOutputChannel: jest.fn(() => ({
+        appendLine: jest.fn(),
+        show: jest.fn(),
+        hide: jest.fn(),
+        clear: jest.fn(),
+        dispose: jest.fn()
+    })),
+    withProgress: jest.fn((options, task) => task({ report: jest.fn() })),
+    onDidChangeTextEditorSelection: jest.fn(() => ({
+        dispose: jest.fn()
+    })),
+    onDidChangeActiveTextEditor: jest.fn(() => ({
+        dispose: jest.fn()
+    }))
 };
 
 export const commands = {
-    registerCommand: jest.fn()
+    registerCommand: jest.fn(() => ({
+        dispose: jest.fn()
+    }))
 };
 
 export const Uri = {
@@ -33,3 +56,20 @@ export const ConfigurationTarget = {
 };
 
 export const ExtensionContext = jest.fn();
+
+export const ExtensionMode = {
+    Production: 1,
+    Development: 2,
+    Test: 3
+};
+
+export const StatusBarAlignment = {
+    Left: 1,
+    Right: 2
+};
+
+export const ProgressLocation = {
+    SourceControl: 1,
+    Window: 10,
+    Notification: 15
+};

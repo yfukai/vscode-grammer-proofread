@@ -126,7 +126,8 @@ export class PromptManager {
      * @returns CustomPrompt or undefined if not found
      */
     private getPromptByName(name: string): CustomPrompt | undefined {
-        return Array.from(this.prompts.values()).find(p => p.name === name);
+        const trimmedName = name.trim();
+        return Array.from(this.prompts.values()).find(p => p.name === trimmedName);
     }
 
     /**

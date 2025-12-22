@@ -97,8 +97,12 @@ describe('Integration Tests', () => {
     });
 
     afterEach(() => {
-        vscodeIntegration.dispose();
-        chatWidget.dispose();
+        if (vscodeIntegration) {
+            vscodeIntegration.dispose();
+        }
+        if (chatWidget) {
+            chatWidget.dispose();
+        }
     });
 
     describe('End-to-end correction workflows', () => {

@@ -14,8 +14,79 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [],
-    "menus": {},
+    "commands": [
+      {
+        "command": "grammarProofreading.openPromptSettings",
+        "title": "Open Prompt Settings",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.openSettings",
+        "title": "Open Settings",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.refreshPrompts",
+        "title": "Refresh Prompts",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.processFullDocument",
+        "title": "Process Full Document",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.showChatWidget",
+        "title": "Show Chat Widget",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.clearChatHistory",
+        "title": "Clear Chat History",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.showOutput",
+        "title": "Show Output",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.clearOutput",
+        "title": "Clear Output",
+        "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.showStatistics",
+        "title": "Show Statistics",
+        "category": "Grammar Proofreading"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "grammarProofreading.submenu",
+          "when": "editorHasSelection",
+          "group": "1_modification"
+        }
+      ],
+      "grammarProofreading.submenu": []
+    },
+    "submenus": [
+      {
+        "id": "grammarProofreading.submenu",
+        "label": "Grammar Proofreading"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "grammarProofreading.chatWidget",
+          "name": "Grammar Proofreading Chat",
+          "when": "true"
+        }
+      ]
+    },
     "configuration": {
       "title": "Grammar Proofreading",
       "properties": {
