@@ -34,13 +34,13 @@
   - **Property 10: Configuration persistence**
   - **Validates: Requirements 2.1, 2.4, 5.5**
 
-- [ ] 4. Implement selection tracking and concurrency control
+- [x] 4. Implement selection tracking and concurrency control
   - Create SelectionTracker class with overlap detection logic
   - Implement TaskManager for managing active correction tasks
   - Add selection-based concurrency control
   - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-- [ ] 4.1 Write property test for selection-based concurrency
+- [x] 4.1 Write property test for selection-based concurrency
   - **Property 6: Selection-based concurrency control**
   - **Validates: Requirements 10.1, 10.2, 10.3**
 
