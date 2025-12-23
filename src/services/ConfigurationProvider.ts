@@ -7,12 +7,12 @@ import { PromptConfiguration, CustomPrompt, LLMApiConfiguration } from '../types
  */
 export class ConfigurationProvider {
     private static readonly EXTENSION_ID = 'grammarProofreading';
-    private static readonly CUSTOM_PROMPTS_KEY = 'customPrompts';
     private static readonly SHARED_PROMPT_KEY = 'sharedPrompt';
     private static readonly API_ENDPOINT_KEY = 'apiEndpoint';
     private static readonly API_KEY_KEY = 'apiKey';
     private static readonly MODEL_KEY = 'model';
     private static readonly CHAT_WIDGET_POSITION_KEY = 'chatWidgetPosition';
+    private static readonly CUSTOM_PROMPTS_KEY = 'customPrompts';
 
     private readonly context: vscode.ExtensionContext;
 
@@ -21,19 +21,28 @@ export class ConfigurationProvider {
     }
 
     /**
-     * Gets the current prompt configuration from storage
+     * Gets the current prompt configuration from settings
      * @returns PromptConfiguration object with custom prompts and shared prompt
      */
     async getPromptConfiguration(): Promise<PromptConfiguration> {
         const config = vscode.workspace.getConfiguration(ConfigurationProvider.EXTENSION_ID);
         
-        // Get custom prompts from workspace state (local to workspace)
-        const customPrompts = this.context.workspaceState.get<CustomPrompt[]>(
+        // Get custom prompts from VSCode settings
+        const customPromptsFromSettings = config.get<Array<{name: string, content: string}>>(
             ConfigurationProvider.CUSTOM_PROMPTS_KEY, 
             []
         );
 
-        // Get shared prompt from VSCode settings (can be global or workspace-specific)
+        // Convert settings format to CustomPrompt format with IDs and timestamps
+        const customPrompts: CustomPrompt[] = customPromptsFromSettings.map((prompt, index) => ({
+            id: `settings_prompt_${index}_${this.hashString(prompt.name + prompt.content)}`,
+            name: prompt.name,
+            content: prompt.content,
+            createdAt: new Date(), // We don't have creation time from settings
+            updatedAt: new Date()
+        }));
+
+        // Get shared prompt from VSCode settings
         const sharedPrompt = config.get<string>(ConfigurationProvider.SHARED_PROMPT_KEY, '');
 
         return {
@@ -43,19 +52,28 @@ export class ConfigurationProvider {
     }
 
     /**
-     * Saves the prompt configuration to storage
+     * Simple hash function to generate consistent IDs from prompt content
+     */
+    private hashString(str: string): string {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return Math.abs(hash).toString(36);
+    }
+
+    /**
+     * Saves the prompt configuration to settings
+     * Note: Custom prompts are now managed through VSCode settings directly
      * @param configuration PromptConfiguration to save
      */
     async savePromptConfiguration(configuration: PromptConfiguration): Promise<void> {
         const config = vscode.workspace.getConfiguration(ConfigurationProvider.EXTENSION_ID);
         
-        // Save custom prompts to workspace state
-        await this.context.workspaceState.update(
-            ConfigurationProvider.CUSTOM_PROMPTS_KEY, 
-            configuration.customPrompts
-        );
-
-        // Save shared prompt to VSCode settings
+        // Only save shared prompt to VSCode settings
+        // Custom prompts are managed directly through settings UI
         await config.update(
             ConfigurationProvider.SHARED_PROMPT_KEY, 
             configuration.sharedPrompt, 
@@ -175,11 +193,12 @@ export class ConfigurationProvider {
     }
 
     /**
-     * Checks if this is the first installation (no custom prompts exist)
+     * Checks if this is the first installation (no custom prompts configured)
      * @returns true if this appears to be first installation
      */
     async isFirstInstallation(): Promise<boolean> {
-        const customPrompts = this.context.workspaceState.get<CustomPrompt[]>(
+        const config = vscode.workspace.getConfiguration(ConfigurationProvider.EXTENSION_ID);
+        const customPrompts = config.get<Array<{name: string, content: string}>>(
             ConfigurationProvider.CUSTOM_PROMPTS_KEY, 
             []
         );
@@ -188,48 +207,40 @@ export class ConfigurationProvider {
 
     /**
      * Creates default prompts for first installation
-     * @returns Array of default CustomPrompt objects
+     * @returns Array of default prompt objects in settings format
      */
-    createDefaultPrompts(): CustomPrompt[] {
-        const now = new Date();
-        
+    createDefaultPrompts(): Array<{name: string, content: string}> {
         return [
             {
-                id: `default_grammar_${Date.now()}`,
                 name: 'Grammar Correction',
-                content: 'Please correct any grammar, spelling, and punctuation errors in the following text while preserving its original meaning and style.',
-                createdAt: now,
-                updatedAt: now
+                content: 'Please correct any grammar, spelling, and punctuation errors in the following text while preserving its original meaning and style.'
             },
             {
-                id: `default_logic_${Date.now() + 1}`,
                 name: 'Logic Reorganization',
-                content: 'Please reorganize the following text to improve its logical flow and clarity while maintaining all the original information.',
-                createdAt: now,
-                updatedAt: now
+                content: 'Please reorganize the following text to improve its logical flow and clarity while maintaining all the original information.'
             },
             {
-                id: `default_tense_${Date.now() + 2}`,
                 name: 'Tense Consistency',
-                content: 'Please review and correct the tense consistency in the following text, ensuring all verbs are in the appropriate tense throughout.',
-                createdAt: now,
-                updatedAt: now
+                content: 'Please review and correct the tense consistency in the following text, ensuring all verbs are in the appropriate tense throughout.'
             }
         ];
     }
 
     /**
      * Initializes default configuration on first installation
+     * Note: Default prompts are now set in package.json, so this mainly ensures settings exist
      */
     async initializeDefaultConfiguration(): Promise<void> {
         if (await this.isFirstInstallation()) {
+            const config = vscode.workspace.getConfiguration(ConfigurationProvider.EXTENSION_ID);
             const defaultPrompts = this.createDefaultPrompts();
-            const defaultConfiguration: PromptConfiguration = {
-                customPrompts: defaultPrompts,
-                sharedPrompt: ''
-            };
             
-            await this.savePromptConfiguration(defaultConfiguration);
+            // Set default prompts in settings if none exist
+            await config.update(
+                ConfigurationProvider.CUSTOM_PROMPTS_KEY,
+                defaultPrompts,
+                vscode.ConfigurationTarget.Workspace
+            );
         }
     }
 

@@ -3,6 +3,7 @@
   "displayName": "Grammar Proofreading Extension",
   "description": "AI-powered text correction with custom prompts",
   "version": "0.0.1",
+  "publisher": "your-publisher-name",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -15,11 +16,6 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "grammarProofreading.openPromptSettings",
-        "title": "Open Prompt Settings",
-        "category": "Grammar Proofreading"
-      },
       {
         "command": "grammarProofreading.openSettings",
         "title": "Open Settings",
@@ -137,7 +133,7 @@
     "viewsWelcome": [
       {
         "view": "grammarProofreading.chatWidget",
-        "contents": "Welcome to Grammar Proofreading!\n\nSelect text in your editor and use the prompt buttons to correct it.\n\n[Open Settings](command:grammarProofreading.openPromptSettings)"
+        "contents": "Welcome to Grammar Proofreading!\n\nSelect text in your editor and use the prompt buttons to correct it.\n\n[Open Settings](command:grammarProofreading.openSettings)"
       }
     ],
     "configuration": {
@@ -175,6 +171,38 @@
           ],
           "default": "explorer",
           "description": "Choose where to display the Grammar Proofreading chat widget"
+        },
+        "grammarProofreading.customPrompts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the prompt"
+              },
+              "content": {
+                "type": "string",
+                "description": "Content of the prompt"
+              }
+            },
+            "required": ["name", "content"]
+          },
+          "default": [
+            {
+              "name": "Grammar Correction",
+              "content": "Please correct any grammar, spelling, and punctuation errors in the following text while preserving its original meaning and style."
+            },
+            {
+              "name": "Logic Reorganization", 
+              "content": "Please reorganize the following text to improve its logical flow and clarity while maintaining all the original information."
+            },
+            {
+              "name": "Tense Consistency",
+              "content": "Please review and correct the tense consistency in the following text, ensuring all verbs are in the appropriate tense throughout."
+            }
+          ],
+          "description": "Custom prompts for text correction. Each prompt should have a name and content."
         }
       }
     }

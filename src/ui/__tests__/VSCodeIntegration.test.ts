@@ -142,11 +142,23 @@ describe('VSCodeIntegration', () => {
                     try {
                         switch (op.operation) {
                             case 'create':
-                                // Only create if name doesn't already exist
+                                // With settings-based configuration, we simulate adding a prompt
                                 const existingNames = currentPrompts.map(p => p.name);
                                 if (!existingNames.includes(op.name)) {
-                                    const newPrompt = initialPromptManager.createPrompt(op.name, op.content);
+                                    const newPrompt = {
+                                        id: `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+                                        name: op.name,
+                                        content: op.content,
+                                        createdAt: new Date(),
+                                        updatedAt: new Date()
+                                    };
                                     currentPrompts.push(newPrompt);
+                                    
+                                    // Update prompt manager with new configuration
+                                    initialPromptManager.loadConfiguration({
+                                        customPrompts: currentPrompts,
+                                        sharedPrompt: ''
+                                    });
                                     
                                     // Trigger UI refresh
                                     integration.refreshPromptCommands();
@@ -164,12 +176,18 @@ describe('VSCodeIntegration', () => {
                                         .map(p => p.name);
                                     
                                     if (!otherNames.includes(op.name)) {
-                                        const updatedPrompt = initialPromptManager.updatePrompt(
-                                            promptToUpdate.id, 
-                                            op.name, 
-                                            op.content
-                                        );
-                                        currentPrompts[randomIndex] = updatedPrompt;
+                                        currentPrompts[randomIndex] = {
+                                            ...promptToUpdate,
+                                            name: op.name,
+                                            content: op.content,
+                                            updatedAt: new Date()
+                                        };
+                                        
+                                        // Update prompt manager with new configuration
+                                        initialPromptManager.loadConfiguration({
+                                            customPrompts: currentPrompts,
+                                            sharedPrompt: ''
+                                        });
                                         
                                         // Trigger UI refresh
                                         integration.refreshPromptCommands();
@@ -180,9 +198,13 @@ describe('VSCodeIntegration', () => {
                             case 'delete':
                                 if (currentPrompts.length > 1) { // Can't delete the last prompt
                                     const randomIndex = Math.floor(Math.random() * currentPrompts.length);
-                                    const promptToDelete = currentPrompts[randomIndex];
-                                    initialPromptManager.deletePrompt(promptToDelete.id);
                                     currentPrompts.splice(randomIndex, 1);
+                                    
+                                    // Update prompt manager with new configuration
+                                    initialPromptManager.loadConfiguration({
+                                        customPrompts: currentPrompts,
+                                        sharedPrompt: ''
+                                    });
                                     
                                     // Trigger UI refresh
                                     integration.refreshPromptCommands();
@@ -265,8 +287,23 @@ describe('VSCodeIntegration', () => {
         test('should refresh commands when prompts change', () => {
             const initialCallCount = (vscode.commands.registerCommand as jest.Mock).mock.calls.length;
             
-            // Add a new prompt
-            promptManager.createPrompt('New Test Prompt', 'Test content');
+            // Create new configuration with additional prompt
+            const testConfig = {
+                customPrompts: [
+                    ...promptManager.getPrompts(),
+                    {
+                        id: 'new-test-prompt',
+                        name: 'New Test Prompt',
+                        content: 'Test content',
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                ],
+                sharedPrompt: ''
+            };
+            
+            // Load new configuration
+            promptManager.loadConfiguration(testConfig);
             
             // Refresh commands
             integration.refreshPromptCommands();
@@ -295,7 +332,19 @@ describe('VSCodeIntegration', () => {
 
         test('should update prompt manager and refresh UI', () => {
             const newPromptManager = new PromptManager();
-            newPromptManager.createPrompt('Updated Prompt', 'Updated content');
+            const testConfig = {
+                customPrompts: [
+                    {
+                        id: 'updated-prompt',
+                        name: 'Updated Prompt',
+                        content: 'Updated content',
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                ],
+                sharedPrompt: ''
+            };
+            newPromptManager.loadConfiguration(testConfig);
             
             const initialCallCount = (vscode.commands.registerCommand as jest.Mock).mock.calls.length;
             

@@ -25,6 +25,15 @@ describe('Integration Tests', () => {
         // Add missing VSCode API mocks
         (vscode.window as any).registerWebviewViewProvider = jest.fn().mockReturnValue({ dispose: jest.fn() });
         (vscode.commands as any).executeCommand = jest.fn().mockResolvedValue(undefined);
+        (vscode.workspace as any).getConfiguration = jest.fn().mockReturnValue({
+            get: jest.fn().mockReturnValue([]),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+        (vscode as any).ConfigurationTarget = {
+            Global: 1,
+            Workspace: 2,
+            WorkspaceFolder: 3
+        };
         
         // Create mock extension context
         mockContext = {
@@ -316,45 +325,51 @@ describe('Integration Tests', () => {
     });
 
     describe('Prompt management operations', () => {
-        test('should create, update, and delete prompts', () => {
-            const initialCount = promptManager.getPrompts().length;
+        test('should load and manage prompts from configuration', () => {
+            const testConfig = {
+                customPrompts: [
+                    {
+                        id: 'test1',
+                        name: 'Test Prompt 1',
+                        content: 'Test content 1',
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    },
+                    {
+                        id: 'test2',
+                        name: 'Test Prompt 2',
+                        content: 'Test content 2',
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                ],
+                sharedPrompt: 'Shared prompt content'
+            };
 
-            // Create new prompt
-            const newPrompt = promptManager.createPrompt('Test Prompt', 'Test content for correction');
-            expect(promptManager.getPrompts().length).toBe(initialCount + 1);
-            expect(newPrompt.name).toBe('Test Prompt');
-            expect(newPrompt.content).toBe('Test content for correction');
-
-            // Update prompt
-            const updatedPrompt = promptManager.updatePrompt(newPrompt.id, 'Updated Prompt', 'Updated content');
-            expect(updatedPrompt.name).toBe('Updated Prompt');
-            expect(updatedPrompt.content).toBe('Updated content');
-            expect(promptManager.getPrompts().length).toBe(initialCount + 1);
-
-            // Delete prompt (if not the last one)
-            if (promptManager.getPrompts().length > 1) {
-                promptManager.deletePrompt(newPrompt.id);
-                expect(promptManager.getPrompts().length).toBe(initialCount);
-            }
+            // Load configuration
+            promptManager.loadConfiguration(testConfig);
+            
+            // Verify prompts were loaded
+            const prompts = promptManager.getPrompts();
+            expect(prompts.length).toBe(2);
+            expect(prompts[0].name).toBe('Test Prompt 1');
+            expect(prompts[1].name).toBe('Test Prompt 2');
+            expect(promptManager.getSharedPrompt()).toBe('Shared prompt content');
         });
 
-        test('should maintain minimum prompt invariant', () => {
-            // Ensure we have exactly one prompt
-            const prompts = promptManager.getPrompts();
-            while (prompts.length > 1) {
-                promptManager.deletePrompt(prompts[prompts.length - 1].id);
-                prompts.pop();
-            }
-
-            expect(promptManager.getPrompts().length).toBe(1);
-
-            // Try to delete the last prompt
-            const lastPrompt = promptManager.getPrompts()[0];
-            expect(() => promptManager.deletePrompt(lastPrompt.id))
-                .toThrow('Cannot delete the last remaining prompt');
-
-            // Should still have one prompt
-            expect(promptManager.getPrompts().length).toBe(1);
+        test('should maintain fallback prompt when no prompts exist', () => {
+            // Load empty configuration
+            promptManager.loadConfiguration({ customPrompts: [], sharedPrompt: '' });
+            
+            // Ensure default prompts
+            promptManager.ensureDefaultPrompts();
+            
+            // Should have at least one prompt
+            expect(promptManager.getPrompts().length).toBeGreaterThanOrEqual(1);
+            
+            const fallbackPrompt = promptManager.getPrompts()[0];
+            expect(fallbackPrompt.name).toBe('Grammar Correction');
+            expect(fallbackPrompt.content).toContain('grammar, spelling, and punctuation');
         });
 
         test('should handle shared prompt configuration', () => {
@@ -427,18 +442,14 @@ describe('Integration Tests', () => {
         });
 
         test('should handle validation errors', () => {
-            // Test invalid prompt creation
-            expect(() => promptManager.createPrompt('', 'content'))
-                .toThrow('Prompt name must be 1-100 characters');
-
-            expect(() => promptManager.createPrompt('name', ''))
-                .toThrow('Prompt content must be 1-2000 characters');
-
-            // Test duplicate name
-            const prompts = promptManager.getPrompts();
-            const existingPrompt = prompts[0];
-            expect(() => promptManager.createPrompt(existingPrompt.name, 'new content'))
-                .toThrow(`Prompt with name "${existingPrompt.name}" already exists`);
+            // Test invalid shared prompt
+            const longSharedPrompt = 'a'.repeat(2001);
+            expect(() => promptManager.setSharedPrompt(longSharedPrompt))
+                .toThrow('Shared prompt content must not exceed 2000 characters');
+                
+            // Test shared prompt validation
+            expect(promptManager.validateSharedPrompt('valid content')).toBe(true);
+            expect(promptManager.validateSharedPrompt(longSharedPrompt)).toBe(false);
         });
 
         test('should handle system errors', () => {
@@ -446,33 +457,60 @@ describe('Integration Tests', () => {
             const longSharedPrompt = 'a'.repeat(2001);
             expect(() => promptManager.setSharedPrompt(longSharedPrompt))
                 .toThrow('Shared prompt content must not exceed 2000 characters');
+                
+            // Test invalid prompt ID in combinePrompts
+            expect(() => promptManager.combinePrompts('nonexistent-id'))
+                .toThrow('Custom prompt with ID "nonexistent-id" not found');
         });
     });
 
     describe('UI synchronization', () => {
         test('should synchronize prompt changes across UI components', () => {
-            const initialPromptCount = promptManager.getPrompts().length;
+            const testConfig = {
+                customPrompts: [
+                    {
+                        id: 'ui-test',
+                        name: 'UI Test Prompt',
+                        content: 'UI test content',
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                ],
+                sharedPrompt: ''
+            };
 
-            // Create new prompt
-            const newPrompt = promptManager.createPrompt('UI Test Prompt', 'UI test content');
+            // Load new configuration
+            promptManager.loadConfiguration(testConfig);
 
             // Update VSCode integration
             vscodeIntegration.updatePromptManager(promptManager);
 
             // Verify command registration
             const promptCommands = vscodeIntegration.getPromptCommands();
-            expect(promptCommands.length).toBe(initialPromptCount + 1);
+            expect(promptCommands.length).toBe(1);
 
             // Find the new prompt command
-            const newPromptCommand = promptCommands.find(cmd => cmd.promptId === newPrompt.id);
+            const newPromptCommand = promptCommands.find(cmd => cmd.promptId === 'ui-test');
             expect(newPromptCommand).toBeDefined();
             expect(newPromptCommand!.title).toContain('UI Test Prompt');
         });
 
         test('should handle chat widget updates', () => {
-            // Update chat widget with new prompt manager
+            // Create new prompt manager with test configuration
             const newPromptManager = new PromptManager();
-            newPromptManager.createPrompt('Chat Test Prompt', 'Chat test content');
+            const testConfig = {
+                customPrompts: [
+                    {
+                        id: 'chat-test',
+                        name: 'Chat Test Prompt',
+                        content: 'Chat test content',
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                ],
+                sharedPrompt: ''
+            };
+            newPromptManager.loadConfiguration(testConfig);
 
             chatWidget.updatePromptManager(newPromptManager);
 
@@ -526,49 +564,50 @@ describe('Integration Tests', () => {
 
     describe('Configuration persistence', () => {
         test('should save and load configuration', async () => {
-            // Mock the workspace state methods
-            let savedConfig: any = null;
-            (mockContext.workspaceState.update as jest.Mock).mockImplementation((key, value) => {
-                if (key === 'customPrompts') {
-                    savedConfig = value;
-                }
-                return Promise.resolve();
-            });
+            // Mock VSCode configuration
+            const mockConfig = {
+                get: jest.fn(),
+                update: jest.fn().mockResolvedValue(undefined)
+            };
+            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfig);
 
-            (mockContext.workspaceState.get as jest.Mock).mockImplementation((key, defaultValue) => {
+            // Mock getting custom prompts from settings
+            mockConfig.get.mockImplementation((key: string, defaultValue: any) => {
                 if (key === 'customPrompts') {
-                    return savedConfig || defaultValue;
+                    return [
+                        {
+                            name: 'Config Test',
+                            content: 'Config test content'
+                        }
+                    ];
+                } else if (key === 'sharedPrompt') {
+                    return 'Test shared prompt';
                 }
                 return defaultValue;
             });
 
-            // Create a new prompt
-            const testPrompt = promptManager.createPrompt('Config Test', 'Config test content');
-            const config = promptManager.getConfiguration();
-
-            // Save configuration
-            await configProvider.savePromptConfiguration(config);
-
-            // Verify it was saved
-            expect(mockContext.workspaceState.update).toHaveBeenCalledWith(
-                'customPrompts',
-                expect.arrayContaining([
-                    expect.objectContaining({
-                        name: 'Config Test',
-                        content: 'Config test content'
-                    })
-                ])
-            );
-
-            // Load configuration
+            // Load configuration from settings
             const loadedConfig = await configProvider.getPromptConfiguration();
-            expect(loadedConfig.customPrompts).toEqual(
-                expect.arrayContaining([
-                    expect.objectContaining({
-                        name: 'Config Test',
-                        content: 'Config test content'
-                    })
-                ])
+            
+            // Verify configuration was loaded correctly
+            expect(loadedConfig.customPrompts.length).toBe(1);
+            expect(loadedConfig.customPrompts[0].name).toBe('Config Test');
+            expect(loadedConfig.customPrompts[0].content).toBe('Config test content');
+            expect(loadedConfig.sharedPrompt).toBe('Test shared prompt');
+
+            // Test saving shared prompt (custom prompts are managed through settings UI)
+            const configToSave = {
+                customPrompts: loadedConfig.customPrompts,
+                sharedPrompt: 'Updated shared prompt'
+            };
+            
+            await configProvider.savePromptConfiguration(configToSave);
+
+            // Verify shared prompt was saved to VSCode settings
+            expect(mockConfig.update).toHaveBeenCalledWith(
+                'sharedPrompt',
+                'Updated shared prompt',
+                vscode.ConfigurationTarget.Workspace
             );
         });
     });

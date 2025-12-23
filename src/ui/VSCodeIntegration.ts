@@ -52,7 +52,7 @@ export class VSCodeIntegration {
         // Register static commands
         const commands = [
             vscode.commands.registerCommand('grammarProofreading.openSettings', () => {
-                this.openPromptSettings();
+                vscode.commands.executeCommand('workbench.action.openSettings', 'grammarProofreading');
             }),
             vscode.commands.registerCommand('grammarProofreading.refreshPrompts', () => {
                 this.refreshPromptCommands();
@@ -351,13 +351,6 @@ export class VSCodeIntegration {
             this.showMessage(`Document processing failed: ${errorMessage}`, 'error');
             this.outputChannel.appendLine(`Error in processFullDocument: ${errorMessage}`);
         }
-    }
-
-    /**
-     * Opens the prompt settings panel
-     */
-    private openPromptSettings(): void {
-        vscode.commands.executeCommand('workbench.action.openSettings', 'grammarProofreading');
     }
 
     /**

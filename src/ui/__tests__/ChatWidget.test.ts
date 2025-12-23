@@ -1,6 +1,6 @@
 import * as fc from 'fast-check';
 import { ChatWidget } from '../ChatWidget';
-import { ChatMessage, CustomPrompt, LLMApiConfiguration } from '../../types';
+import { ChatMessage, LLMApiConfiguration } from '../../types';
 import { CorrectionService } from '../../services/CorrectionService';
 import { PromptManager } from '../../services/PromptManager';
 import { TaskManager } from '../../services/TaskManager';
@@ -272,7 +272,19 @@ describe('ChatWidget', () => {
 
         test('should update prompt manager and refresh buttons', () => {
             const newPromptManager = new PromptManager();
-            newPromptManager.createPrompt('New Prompt', 'New content');
+            const testConfig = {
+                customPrompts: [
+                    {
+                        id: 'new-prompt',
+                        name: 'New Prompt',
+                        content: 'New content',
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    }
+                ],
+                sharedPrompt: ''
+            };
+            newPromptManager.loadConfiguration(testConfig);
 
             chatWidget.updatePromptManager(newPromptManager);
 

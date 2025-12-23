@@ -1,106 +1,12 @@
 import { CustomPrompt, PromptConfiguration } from '../types';
 
 /**
- * Manages CRUD operations for custom prompts with data integrity guarantees
+ * Manages custom prompts loaded from configuration
+ * Prompts are now managed through VSCode settings
  */
 export class PromptManager {
     private prompts: Map<string, CustomPrompt> = new Map();
     private sharedPrompt: string = '';
-
-    /**
-     * Creates a new custom prompt
-     * @param name Unique name for the prompt (1-100 characters)
-     * @param content Prompt content (1-2000 characters)
-     * @returns The created CustomPrompt
-     * @throws Error if name is not unique or validation fails
-     */
-    createPrompt(name: string, content: string): CustomPrompt {
-        // Validate name uniqueness
-        if (this.getPromptByName(name)) {
-            throw new Error(`Prompt with name "${name}" already exists`);
-        }
-
-        // Validate name length
-        if (!name || name.trim().length === 0 || name.length > 100) {
-            throw new Error('Prompt name must be 1-100 characters');
-        }
-
-        // Validate content length
-        if (!content || content.trim().length === 0 || content.length > 2000) {
-            throw new Error('Prompt content must be 1-2000 characters');
-        }
-
-        const now = new Date();
-        const prompt: CustomPrompt = {
-            id: this.generateId(),
-            name: name.trim(),
-            content: content.trim(),
-            createdAt: now,
-            updatedAt: now
-        };
-
-        this.prompts.set(prompt.id, prompt);
-        return { ...prompt }; // Return a copy to maintain immutability
-    }
-
-    /**
-     * Updates an existing custom prompt
-     * @param id Prompt ID to update
-     * @param name New name for the prompt
-     * @param content New content for the prompt
-     * @returns The updated CustomPrompt
-     * @throws Error if prompt not found or validation fails
-     */
-    updatePrompt(id: string, name: string, content: string): CustomPrompt {
-        const existingPrompt = this.prompts.get(id);
-        if (!existingPrompt) {
-            throw new Error(`Prompt with ID "${id}" not found`);
-        }
-
-        // Check name uniqueness (excluding current prompt)
-        const existingWithName = this.getPromptByName(name);
-        if (existingWithName && existingWithName.id !== id) {
-            throw new Error(`Prompt with name "${name}" already exists`);
-        }
-
-        // Validate name length
-        if (!name || name.trim().length === 0 || name.length > 100) {
-            throw new Error('Prompt name must be 1-100 characters');
-        }
-
-        // Validate content length
-        if (!content || content.trim().length === 0 || content.length > 2000) {
-            throw new Error('Prompt content must be 1-2000 characters');
-        }
-
-        const updatedPrompt: CustomPrompt = {
-            ...existingPrompt,
-            name: name.trim(),
-            content: content.trim(),
-            updatedAt: new Date()
-        };
-
-        this.prompts.set(id, updatedPrompt);
-        return { ...updatedPrompt }; // Return a copy to maintain immutability
-    }
-
-    /**
-     * Deletes a custom prompt
-     * @param id Prompt ID to delete
-     * @throws Error if prompt not found or if trying to delete the last prompt
-     */
-    deletePrompt(id: string): void {
-        if (!this.prompts.has(id)) {
-            throw new Error(`Prompt with ID "${id}" not found`);
-        }
-
-        // Prevent deletion of the last prompt (minimum prompt invariant)
-        if (this.prompts.size <= 1) {
-            throw new Error('Cannot delete the last remaining prompt');
-        }
-
-        this.prompts.delete(id);
-    }
 
     /**
      * Retrieves all custom prompts
@@ -118,16 +24,6 @@ export class PromptManager {
     getPrompt(id: string): CustomPrompt | undefined {
         const prompt = this.prompts.get(id);
         return prompt ? { ...prompt } : undefined;
-    }
-
-    /**
-     * Retrieves a prompt by name
-     * @param name Prompt name to search for
-     * @returns CustomPrompt or undefined if not found
-     */
-    private getPromptByName(name: string): CustomPrompt | undefined {
-        const trimmedName = name.trim();
-        return Array.from(this.prompts.values()).find(p => p.name === trimmedName);
     }
 
     /**
@@ -171,7 +67,7 @@ export class PromptManager {
     }
 
     /**
-     * Loads configuration from external source
+     * Loads configuration from external source (settings)
      * @param config Configuration to load
      */
     loadConfiguration(config: PromptConfiguration): void {
@@ -181,14 +77,6 @@ export class PromptManager {
         for (const prompt of config.customPrompts) {
             this.prompts.set(prompt.id, { ...prompt });
         }
-    }
-
-    /**
-     * Generates a unique ID for prompts
-     * @returns Unique string ID
-     */
-    private generateId(): string {
-        return `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     }
 
     /**
@@ -214,10 +102,20 @@ export class PromptManager {
 
     /**
      * Ensures at least one default prompt exists
+     * Note: With settings-based configuration, this is mainly for fallback
      */
     ensureDefaultPrompts(): void {
         if (this.prompts.size === 0) {
-            this.createPrompt('Grammar Correction', 'Please correct any grammar, spelling, and punctuation errors in the following text while preserving its original meaning and style.');
+            // Create a fallback prompt if none exist
+            const now = new Date();
+            const fallbackPrompt: CustomPrompt = {
+                id: 'fallback_grammar',
+                name: 'Grammar Correction',
+                content: 'Please correct any grammar, spelling, and punctuation errors in the following text while preserving its original meaning and style.',
+                createdAt: now,
+                updatedAt: now
+            };
+            this.prompts.set(fallbackPrompt.id, fallbackPrompt);
         }
     }
 }

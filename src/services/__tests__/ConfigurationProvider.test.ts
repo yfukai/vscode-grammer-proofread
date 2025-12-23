@@ -98,6 +98,76 @@ describe('ConfigurationProvider', () => {
         });
     });
 
+    describe('Custom Prompts Configuration', () => {
+        test('should get custom prompts from settings', async () => {
+            const settingsPrompts = [
+                { name: 'Test Prompt', content: 'Test content' },
+                { name: 'Another Prompt', content: 'Another content' }
+            ];
+            mockConfig.get.mockReturnValue(settingsPrompts);
+            
+            const config = await configProvider.getPromptConfiguration();
+            
+            expect(config.customPrompts).toHaveLength(2);
+            expect(config.customPrompts[0].name).toBe('Test Prompt');
+            expect(config.customPrompts[0].content).toBe('Test content');
+            expect(config.customPrompts[0].id).toBeTruthy();
+            expect(config.customPrompts[1].name).toBe('Another Prompt');
+            expect(config.customPrompts[1].content).toBe('Another content');
+        });
+
+        test('should generate consistent IDs for same prompt content', async () => {
+            const settingsPrompts = [
+                { name: 'Test Prompt', content: 'Test content' }
+            ];
+            mockConfig.get.mockReturnValue(settingsPrompts);
+            
+            const config1 = await configProvider.getPromptConfiguration();
+            const config2 = await configProvider.getPromptConfiguration();
+            
+            expect(config1.customPrompts[0].id).toBe(config2.customPrompts[0].id);
+        });
+
+        test('should handle empty custom prompts from settings', async () => {
+            mockConfig.get.mockReturnValue([]);
+            
+            const config = await configProvider.getPromptConfiguration();
+            
+            expect(config.customPrompts).toHaveLength(0);
+        });
+    });
+
+    describe('Prompt Configuration Management', () => {
+        test('should get prompt configuration with shared prompt', async () => {
+            const settingsPrompts = [{ name: 'Test', content: 'Content' }];
+            mockConfig.get
+                .mockReturnValueOnce(settingsPrompts) // customPrompts
+                .mockReturnValueOnce('Shared content'); // sharedPrompt
+            
+            const config = await configProvider.getPromptConfiguration();
+            
+            expect(config.customPrompts).toHaveLength(1);
+            expect(config.sharedPrompt).toBe('Shared content');
+        });
+
+        test('should save only shared prompt to configuration', async () => {
+            const config = {
+                customPrompts: [{ id: 'test', name: 'Test', content: 'Content', createdAt: new Date(), updatedAt: new Date() }],
+                sharedPrompt: 'New shared content'
+            };
+            
+            await configProvider.savePromptConfiguration(config);
+            
+            // Should only update shared prompt, not custom prompts
+            expect(mockConfig.update).toHaveBeenCalledWith(
+                'sharedPrompt',
+                'New shared content',
+                vscode.ConfigurationTarget.Workspace
+            );
+            expect(mockConfig.update).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('LLM API Configuration', () => {
         test('should get LLM API configuration with defaults', () => {
             mockConfig.get
@@ -204,7 +274,7 @@ describe('ConfigurationProvider', () => {
 
     describe('Default Configuration', () => {
         test('should detect first installation correctly', async () => {
-            (mockContext.workspaceState.get as jest.Mock).mockReturnValue([]);
+            mockConfig.get.mockReturnValue([]);
             
             const isFirst = await configProvider.isFirstInstallation();
             
@@ -212,14 +282,14 @@ describe('ConfigurationProvider', () => {
         });
 
         test('should detect existing installation correctly', async () => {
-            (mockContext.workspaceState.get as jest.Mock).mockReturnValue([{ id: 'test', name: 'Test' }]);
+            mockConfig.get.mockReturnValue([{ name: 'Test', content: 'Content' }]);
             
             const isFirst = await configProvider.isFirstInstallation();
             
             expect(isFirst).toBe(false);
         });
 
-        test('should create default prompts', () => {
+        test('should create default prompts in settings format', () => {
             const defaultPrompts = configProvider.createDefaultPrompts();
             
             expect(defaultPrompts).toHaveLength(3);
@@ -229,12 +299,35 @@ describe('ConfigurationProvider', () => {
             
             // Verify all prompts have required fields
             defaultPrompts.forEach(prompt => {
-                expect(prompt.id).toBeTruthy();
                 expect(prompt.name).toBeTruthy();
                 expect(prompt.content).toBeTruthy();
-                expect(prompt.createdAt).toBeInstanceOf(Date);
-                expect(prompt.updatedAt).toBeInstanceOf(Date);
+                expect(typeof prompt.name).toBe('string');
+                expect(typeof prompt.content).toBe('string');
             });
+        });
+
+        test('should initialize default configuration on first installation', async () => {
+            mockConfig.get.mockReturnValue([]); // Empty prompts = first installation
+            
+            await configProvider.initializeDefaultConfiguration();
+            
+            expect(mockConfig.update).toHaveBeenCalledWith(
+                'customPrompts',
+                expect.arrayContaining([
+                    expect.objectContaining({ name: 'Grammar Correction' }),
+                    expect.objectContaining({ name: 'Logic Reorganization' }),
+                    expect.objectContaining({ name: 'Tense Consistency' })
+                ]),
+                vscode.ConfigurationTarget.Workspace
+            );
+        });
+
+        test('should not initialize defaults if prompts already exist', async () => {
+            mockConfig.get.mockReturnValue([{ name: 'Existing', content: 'Content' }]);
+            
+            await configProvider.initializeDefaultConfiguration();
+            
+            expect(mockConfig.update).not.toHaveBeenCalled();
         });
     });
 });

@@ -7,7 +7,6 @@ import { CorrectionService } from './services/CorrectionService';
 import { ErrorHandler } from './services/ErrorHandler';
 import { ChatWidget } from './ui/ChatWidget';
 import { VSCodeIntegration } from './ui/VSCodeIntegration';
-import { PromptSettingsPanel } from './ui/PromptSettingsPanel';
 
 /**
  * Extension activation function
@@ -34,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const config = await configProvider.getPromptConfiguration();
             promptManager.loadConfiguration(config);
             
-            // Ensure at least one prompt exists
+            // Ensure at least one prompt exists (fallback)
             if (promptManager.getPrompts().length === 0) {
                 await configProvider.initializeDefaultConfiguration();
                 const defaultConfig = await configProvider.getPromptConfiguration();
@@ -65,12 +64,6 @@ export async function activate(context: vscode.ExtensionContext) {
         // Initialize VSCode integration
         const vscodeIntegration = new VSCodeIntegration(correctionService, promptManager, chatWidget);
         context.subscriptions.push(vscodeIntegration);
-
-        // Register prompt settings panel command
-        const openSettingsCommand = vscode.commands.registerCommand('grammarProofreading.openPromptSettings', () => {
-            PromptSettingsPanel.createOrShow(context.extensionUri, promptManager, configProvider);
-        });
-        context.subscriptions.push(openSettingsCommand);
 
         // Listen for configuration changes
         const configChangeListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
