@@ -57,6 +57,11 @@
         "category": "Grammar Proofreading"
       },
       {
+        "command": "grammarProofreading.testApiConnection",
+        "title": "Test API Connection",
+        "category": "Grammar Proofreading"
+      },
+      {
         "command": "grammarProofreading.changeChatWidgetPosition",
         "title": "Change Chat Widget Position",
         "category": "Grammar Proofreading"

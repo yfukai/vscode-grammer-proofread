@@ -116,6 +116,56 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                 });
             }),
+            vscode.commands.registerCommand('grammarProofreading.testApiConnection', async () => {
+                try {
+                    // Show current configuration (without exposing full API key)
+                    const currentApiConfig = configProvider.getLLMApiConfiguration();
+                    const configSummary = {
+                        endpoint: currentApiConfig.endpoint,
+                        apiKey: currentApiConfig.apiKey ? `${currentApiConfig.apiKey.substring(0, 10)}...` : 'MISSING',
+                        model: currentApiConfig.model,
+                        maxTokens: currentApiConfig.maxTokens,
+                        temperature: currentApiConfig.temperature
+                    };
+                    
+                    outputChannel.appendLine('[DEBUG] Current API Configuration:');
+                    outputChannel.appendLine(JSON.stringify(configSummary, null, 2));
+                    outputChannel.show();
+                    
+                    // Test configuration validation
+                    const testApiClient = new LLMApiClient(currentApiConfig);
+                    const validationErrors = testApiClient.validateConfiguration();
+                    
+                    if (validationErrors.length > 0) {
+                        outputChannel.appendLine('[DEBUG] Configuration validation errors:');
+                        validationErrors.forEach(error => outputChannel.appendLine(`  - ${error}`));
+                        vscode.window.showErrorMessage(`API Configuration Invalid: ${validationErrors.join(', ')}`);
+                        return;
+                    }
+                    
+                    outputChannel.appendLine('[DEBUG] Configuration validation passed');
+                    
+                    // Test actual connection
+                    outputChannel.appendLine('[DEBUG] Testing API connection...');
+                    vscode.window.showInformationMessage('Testing API connection...');
+                    
+                    const testResult = await testApiClient.testConnection();
+                    
+                    if (testResult) {
+                        outputChannel.appendLine('[DEBUG] API connection test successful!');
+                        vscode.window.showInformationMessage('API connection test successful!');
+                    } else {
+                        outputChannel.appendLine('[DEBUG] API connection test failed - no response');
+                        vscode.window.showErrorMessage('API connection test failed - no response received');
+                    }
+                    
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    outputChannel.appendLine(`[DEBUG] API connection test failed: ${errorMessage}`);
+                    outputChannel.show();
+                    vscode.window.showErrorMessage(`API Connection Test Failed: ${errorMessage}`);
+                }
+            }),
             vscode.commands.registerCommand('grammarProofreading.changeChatWidgetPosition', async () => {
                 const currentPosition = configProvider.getChatWidgetPosition();
                 const positions = [

@@ -24,21 +24,35 @@ export class LLMApiClient {
      * @throws Error for API failures, network issues, or invalid responses
      */
     async sendRequest(prompt: string, text: string): Promise<string> {
+        console.log('[LLMApiClient] Starting API request...');
+        console.log('[LLMApiClient] Endpoint:', this.configuration.endpoint);
+        console.log('[LLMApiClient] Model:', this.configuration.model);
+        console.log('[LLMApiClient] API Key present:', !!this.configuration.apiKey);
+        
         // Validate configuration before making request
         const validationErrors = this.validateConfiguration();
         if (validationErrors.length > 0) {
+            console.error('[LLMApiClient] Configuration validation failed:', validationErrors);
             throw new Error(`Invalid API configuration: ${validationErrors.join(', ')}`);
         }
 
         // Build request payload
         const requestBody = this.buildRequestPayload(prompt, text);
+        console.log('[LLMApiClient] Request payload:', {
+            model: requestBody.model,
+            messagesCount: requestBody.messages.length,
+            maxTokens: requestBody.max_tokens,
+            temperature: requestBody.temperature
+        });
 
         try {
             // Check if fetch is available (browser/Node 18+) or use a polyfill
             if (typeof fetch === 'undefined') {
+                console.error('[LLMApiClient] Fetch API not available');
                 throw new Error('Fetch API not available. Please ensure you are running in a compatible environment.');
             }
 
+            console.log('[LLMApiClient] Making fetch request...');
             const response = await fetch(this.configuration.endpoint, {
                 method: 'POST',
                 headers: {
@@ -48,16 +62,34 @@ export class LLMApiClient {
                 body: JSON.stringify(requestBody)
             });
 
+            console.log('[LLMApiClient] Response status:', response.status);
+            console.log('[LLMApiClient] Response ok:', response.ok);
+
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error('[LLMApiClient] API error response:', errorText);
                 throw new Error(`API request failed with status ${response.status}: ${errorText}`);
             }
 
             const responseData = await response.json();
-            return this.parseResponse(responseData);
+            console.log('[LLMApiClient] Response data structure:', {
+                hasChoices: !!responseData.choices,
+                choicesLength: responseData.choices?.length || 0,
+                firstChoiceHasMessage: !!responseData.choices?.[0]?.message,
+                firstChoiceHasContent: !!responseData.choices?.[0]?.message?.content
+            });
+            
+            const result = this.parseResponse(responseData);
+            console.log('[LLMApiClient] Successfully parsed response, length:', result.length);
+            return result;
 
         } catch (error) {
+            console.error('[LLMApiClient] Request failed:', error);
             if (error instanceof Error) {
+                // Add more specific error information
+                if (error.message.includes('fetch')) {
+                    throw new Error(`Network connection failed: ${error.message}. Check your internet connection and API endpoint.`);
+                }
                 throw error;
             }
             throw new Error(`Network error: ${String(error)}`);
