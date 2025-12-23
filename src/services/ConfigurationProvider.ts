@@ -12,6 +12,7 @@ export class ConfigurationProvider {
     private static readonly API_ENDPOINT_KEY = 'apiEndpoint';
     private static readonly API_KEY_KEY = 'apiKey';
     private static readonly MODEL_KEY = 'model';
+    private static readonly CHAT_WIDGET_POSITION_KEY = 'chatWidgetPosition';
 
     private readonly context: vscode.ExtensionContext;
 
@@ -230,6 +231,31 @@ export class ConfigurationProvider {
             
             await this.savePromptConfiguration(defaultConfiguration);
         }
+    }
+
+    /**
+     * Gets the chat widget position preference
+     * @returns Position where the chat widget should be displayed
+     */
+    getChatWidgetPosition(): 'explorer' | 'scm' | 'debug' | 'extensions' | 'panel' {
+        const config = vscode.workspace.getConfiguration(ConfigurationProvider.EXTENSION_ID);
+        return config.get<'explorer' | 'scm' | 'debug' | 'extensions' | 'panel'>(
+            ConfigurationProvider.CHAT_WIDGET_POSITION_KEY, 
+            'explorer'
+        );
+    }
+
+    /**
+     * Sets the chat widget position preference
+     * @param position Where to display the chat widget
+     */
+    async setChatWidgetPosition(position: 'explorer' | 'scm' | 'debug' | 'extensions' | 'panel'): Promise<void> {
+        const config = vscode.workspace.getConfiguration(ConfigurationProvider.EXTENSION_ID);
+        await config.update(
+            ConfigurationProvider.CHAT_WIDGET_POSITION_KEY, 
+            position, 
+            vscode.ConfigurationTarget.Workspace
+        );
     }
 
     /**

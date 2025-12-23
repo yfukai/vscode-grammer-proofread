@@ -59,6 +59,11 @@
         "command": "grammarProofreading.showStatistics",
         "title": "Show Statistics",
         "category": "Grammar Proofreading"
+      },
+      {
+        "command": "grammarProofreading.changeChatWidgetPosition",
+        "title": "Change Chat Widget Position",
+        "category": "Grammar Proofreading"
       }
     ],
     "menus": {
@@ -77,16 +82,64 @@
         "label": "Grammar Proofreading"
       }
     ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "grammarProofreading.panel",
+          "title": "Grammar Proofreading",
+          "icon": "$(pencil)",
+          "when": "config.grammarProofreading.chatWidgetPosition == 'panel'"
+        }
+      ]
+    },
     "views": {
       "explorer": [
         {
           "type": "webview",
           "id": "grammarProofreading.chatWidget",
           "name": "Grammar Proofreading Chat",
-          "when": "true"
+          "when": "config.grammarProofreading.chatWidgetPosition == 'explorer'"
+        }
+      ],
+      "scm": [
+        {
+          "type": "webview",
+          "id": "grammarProofreading.chatWidget",
+          "name": "Grammar Proofreading Chat",
+          "when": "config.grammarProofreading.chatWidgetPosition == 'scm'"
+        }
+      ],
+      "debug": [
+        {
+          "type": "webview",
+          "id": "grammarProofreading.chatWidget",
+          "name": "Grammar Proofreading Chat",
+          "when": "config.grammarProofreading.chatWidgetPosition == 'debug'"
+        }
+      ],
+      "extensions": [
+        {
+          "type": "webview",
+          "id": "grammarProofreading.chatWidget",
+          "name": "Grammar Proofreading Chat",
+          "when": "config.grammarProofreading.chatWidgetPosition == 'extensions'"
+        }
+      ],
+      "grammarProofreading.panel": [
+        {
+          "type": "webview",
+          "id": "grammarProofreading.chatWidget",
+          "name": "Grammar Proofreading Chat",
+          "when": "config.grammarProofreading.chatWidgetPosition == 'panel'"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "grammarProofreading.chatWidget",
+        "contents": "Welcome to Grammar Proofreading!\n\nSelect text in your editor and use the prompt buttons to correct it.\n\n[Open Settings](command:grammarProofreading.openPromptSettings)"
+      }
+    ],
     "configuration": {
       "title": "Grammar Proofreading",
       "properties": {
@@ -109,6 +162,19 @@
           "type": "string",
           "default": "gpt-3.5-turbo",
           "description": "LLM model to use"
+        },
+        "grammarProofreading.chatWidgetPosition": {
+          "type": "string",
+          "enum": ["explorer", "scm", "debug", "extensions", "panel"],
+          "enumDescriptions": [
+            "Show in Explorer sidebar",
+            "Show in Source Control sidebar", 
+            "Show in Debug sidebar",
+            "Show in Extensions sidebar",
+            "Show in bottom Panel"
+          ],
+          "default": "explorer",
+          "description": "Choose where to display the Grammar Proofreading chat widget"
         }
       }
     }

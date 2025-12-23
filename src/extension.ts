@@ -122,6 +122,33 @@ export async function activate(context: vscode.ExtensionContext) {
                         outputChannel.show();
                     }
                 });
+            }),
+            vscode.commands.registerCommand('grammarProofreading.changeChatWidgetPosition', async () => {
+                const currentPosition = configProvider.getChatWidgetPosition();
+                const positions = [
+                    { label: 'Explorer Sidebar', value: 'explorer' as const, description: 'Show in the Explorer panel' },
+                    { label: 'Source Control Sidebar', value: 'scm' as const, description: 'Show in the Source Control panel' },
+                    { label: 'Debug Sidebar', value: 'debug' as const, description: 'Show in the Debug panel' },
+                    { label: 'Extensions Sidebar', value: 'extensions' as const, description: 'Show in the Extensions panel' },
+                    { label: 'Bottom Panel', value: 'panel' as const, description: 'Show in a dedicated bottom panel' }
+                ];
+
+                const selectedPosition = await vscode.window.showQuickPick(positions, {
+                    placeHolder: `Current position: ${currentPosition}. Select new position for the chat widget`,
+                    ignoreFocusOut: true
+                });
+
+                if (selectedPosition && selectedPosition.value !== currentPosition) {
+                    await configProvider.setChatWidgetPosition(selectedPosition.value);
+                    vscode.window.showInformationMessage(
+                        `Chat widget position changed to ${selectedPosition.label}. The widget will appear in the new location.`,
+                        'Show Widget'
+                    ).then(selection => {
+                        if (selection === 'Show Widget') {
+                            vscode.commands.executeCommand('grammarProofreading.showChatWidget');
+                        }
+                    });
+                }
             })
         ];
         context.subscriptions.push(...commands);

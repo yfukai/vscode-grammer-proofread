@@ -30,8 +30,8 @@ export class VSCodeIntegration {
             100
         );
         this.statusBarItem.text = '$(pencil) Grammar';
-        this.statusBarItem.tooltip = 'Grammar Proofreading Extension';
-        this.statusBarItem.command = 'grammarProofreading.openSettings';
+        this.statusBarItem.tooltip = 'Click to show Grammar Proofreading Chat';
+        this.statusBarItem.command = 'grammarProofreading.showChatWidget';
         this.statusBarItem.show();
         
         // Create output channel for logging
@@ -61,8 +61,38 @@ export class VSCodeIntegration {
             vscode.commands.registerCommand('grammarProofreading.processFullDocument', () => {
                 this.processFullDocument();
             }),
-            vscode.commands.registerCommand('grammarProofreading.showChatWidget', () => {
-                vscode.commands.executeCommand('workbench.view.extension.grammarProofreading');
+            vscode.commands.registerCommand('grammarProofreading.showChatWidget', async () => {
+                // Try to focus the chat widget view
+                try {
+                    await vscode.commands.executeCommand('grammarProofreading.chatWidget.focus');
+                } catch (error) {
+                    // If focus fails, try to show the view container
+                    const config = vscode.workspace.getConfiguration('grammarProofreading');
+                    const position = config.get<string>('chatWidgetPosition', 'explorer');
+                    
+                    switch (position) {
+                        case 'explorer':
+                            await vscode.commands.executeCommand('workbench.view.explorer');
+                            break;
+                        case 'scm':
+                            await vscode.commands.executeCommand('workbench.view.scm');
+                            break;
+                        case 'debug':
+                            await vscode.commands.executeCommand('workbench.view.debug');
+                            break;
+                        case 'extensions':
+                            await vscode.commands.executeCommand('workbench.view.extensions');
+                            break;
+                        case 'panel':
+                            await vscode.commands.executeCommand('workbench.panel.grammarProofreading.panel.focus');
+                            break;
+                    }
+                    
+                    // Try to focus the widget again after showing the container
+                    setTimeout(() => {
+                        vscode.commands.executeCommand('grammarProofreading.chatWidget.focus');
+                    }, 100);
+                }
             }),
             vscode.commands.registerCommand('grammarProofreading.clearChatHistory', () => {
                 this.chatWidget.clearHistory();
@@ -340,13 +370,13 @@ export class VSCodeIntegration {
 
         if (activeTasks.length > 0) {
             this.statusBarItem.text = '$(loading~spin) Processing...';
-            this.statusBarItem.tooltip = `${activeTasks.length} correction task(s) in progress`;
+            this.statusBarItem.tooltip = `${activeTasks.length} correction task(s) in progress - Click to show chat`;
         } else if (selectedText && selectedText.trim().length > 0) {
             this.statusBarItem.text = '$(pencil) Ready to Correct';
-            this.statusBarItem.tooltip = `${selectedText.length} characters selected - Click to open settings`;
+            this.statusBarItem.tooltip = `${selectedText.length} characters selected - Click to show chat widget`;
         } else {
             this.statusBarItem.text = '$(pencil) Grammar';
-            this.statusBarItem.tooltip = 'Grammar Proofreading Extension - Select text to correct';
+            this.statusBarItem.tooltip = 'Click to show Grammar Proofreading Chat - Select text to correct';
         }
     }
 

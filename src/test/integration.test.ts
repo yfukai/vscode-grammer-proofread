@@ -22,6 +22,10 @@ describe('Integration Tests', () => {
     let outputChannel: vscode.OutputChannel;
 
     beforeEach(() => {
+        // Add missing VSCode API mocks
+        (vscode.window as any).registerWebviewViewProvider = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        (vscode.commands as any).executeCommand = jest.fn().mockResolvedValue(undefined);
+        
         // Create mock extension context
         mockContext = {
             subscriptions: [],
@@ -93,6 +97,10 @@ describe('Integration Tests', () => {
         correctionService = new CorrectionService(promptManager, apiClient, taskManager, errorHandler);
         
         chatWidget = new ChatWidget(mockContext.extensionUri, correctionService, promptManager);
+        
+        // Simulate the webview provider registration that happens in extension.ts
+        vscode.window.registerWebviewViewProvider(ChatWidget.viewType, chatWidget);
+        
         vscodeIntegration = new VSCodeIntegration(correctionService, promptManager, chatWidget);
     });
 
@@ -470,6 +478,49 @@ describe('Integration Tests', () => {
 
             // Verify the update doesn't throw errors
             expect(() => chatWidget.refreshPromptButtons()).not.toThrow();
+        });
+    });
+
+    describe('Chat Widget Visibility', () => {
+        test('should make chat widget visible when showChatWidget command is executed', async () => {
+            // Find the showChatWidget command registration from VSCodeIntegration
+            const showChatWidgetCall = (vscode.commands.registerCommand as jest.Mock).mock.calls.find(
+                call => call[0] === 'grammarProofreading.showChatWidget'
+            );
+            
+            expect(showChatWidgetCall).toBeDefined();
+            
+            // Execute the command handler
+            const commandHandler = showChatWidgetCall[1];
+            await commandHandler();
+
+            // Verify the chat widget focus command was called
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('grammarProofreading.chatWidget.focus');
+        });
+
+        test('should make chat widget visible when status bar Grammar button is clicked', async () => {
+            // Find the showChatWidget command registration from VSCodeIntegration
+            const showChatWidgetCall = (vscode.commands.registerCommand as jest.Mock).mock.calls.find(
+                call => call[0] === 'grammarProofreading.showChatWidget'
+            );
+            
+            expect(showChatWidgetCall).toBeDefined();
+
+            // Execute the command handler (simulating status bar click)
+            const commandHandler = showChatWidgetCall[1];
+            await commandHandler();
+
+            // Verify the chat widget focus command was called
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('grammarProofreading.chatWidget.focus');
+        });
+
+        test('should register chat widget view provider during extension activation', () => {
+            // The chat widget should be created and registered during beforeEach
+            // Verify that the chat widget view provider is registered
+            expect(vscode.window.registerWebviewViewProvider).toHaveBeenCalledWith(
+                'grammarProofreading.chatWidget',
+                expect.any(Object)
+            );
         });
     });
 

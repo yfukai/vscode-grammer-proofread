@@ -36,7 +36,10 @@ jest.mock('vscode', () => ({
         onDidChangeActiveTextEditor: jest.fn().mockReturnValue({ dispose: jest.fn() })
     },
     workspace: {
-        onDidChangeConfiguration: jest.fn().mockReturnValue({ dispose: jest.fn() })
+        onDidChangeConfiguration: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+        getConfiguration: jest.fn().mockReturnValue({
+            get: jest.fn().mockReturnValue('explorer')
+        })
     },
     StatusBarAlignment: {
         Right: 2
@@ -365,6 +368,147 @@ describe('VSCodeIntegration', () => {
                 
                 expect(actualCommand).toBeDefined();
                 expect(actualCommand!.id).toBe(expectedCommandId);
+            }
+        });
+    });
+
+    describe('Chat Widget Integration', () => {
+        test('should show chat widget when showChatWidget command is executed', async () => {
+            // Find the showChatWidget command registration
+            const showChatWidgetCall = (vscode.commands.registerCommand as jest.Mock).mock.calls.find(
+                call => call[0] === 'grammarProofreading.showChatWidget'
+            );
+            
+            expect(showChatWidgetCall).toBeDefined();
+            
+            // Execute the command handler
+            const commandHandler = showChatWidgetCall[1];
+            await commandHandler();
+            
+            // Verify it calls the focus command
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('grammarProofreading.chatWidget.focus');
+        });
+
+        test('should show chat widget when status bar item is clicked', async () => {
+            // Find the showChatWidget command registration
+            const showChatWidgetCall = (vscode.commands.registerCommand as jest.Mock).mock.calls.find(
+                call => call[0] === 'grammarProofreading.showChatWidget'
+            );
+            
+            expect(showChatWidgetCall).toBeDefined();
+
+            // Get the status bar item
+            const statusBarItem = (vscode.window.createStatusBarItem as jest.Mock).mock.results[0].value;
+            
+            // Verify status bar item has the correct command
+            expect(statusBarItem.command).toBe('grammarProofreading.showChatWidget');
+
+            // Execute the command handler (simulating status bar click)
+            const commandHandler = showChatWidgetCall[1];
+            await commandHandler();
+
+            // Verify the focus command was called
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('grammarProofreading.chatWidget.focus');
+        });
+
+        test('should register showChatWidget command during initialization', () => {
+            // Verify the command was registered
+            const registeredCommands = (vscode.commands.registerCommand as jest.Mock).mock.calls.map(call => call[0]);
+            expect(registeredCommands).toContain('grammarProofreading.showChatWidget');
+        });
+
+        test('should update status bar tooltip to indicate chat widget functionality', () => {
+            const statusBarItem = (vscode.window.createStatusBarItem as jest.Mock).mock.results[0].value;
+            
+            // Check initial state
+            expect(statusBarItem.text).toBe('$(pencil) Grammar');
+            expect(statusBarItem.tooltip).toBe('Click to show Grammar Proofreading Chat');
+            expect(statusBarItem.command).toBe('grammarProofreading.showChatWidget');
+        });
+
+        test('should execute chat widget focus command when showChatWidget is called', async () => {
+            // Find the showChatWidget command registration
+            const showChatWidgetCall = (vscode.commands.registerCommand as jest.Mock).mock.calls.find(
+                call => call[0] === 'grammarProofreading.showChatWidget'
+            );
+            
+            expect(showChatWidgetCall).toBeDefined();
+            
+            // Execute the command handler
+            const commandHandler = showChatWidgetCall[1];
+            await commandHandler();
+            
+            // Verify it calls the focus command
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('grammarProofreading.chatWidget.focus');
+        });
+
+        test('should handle focus failure by showing appropriate view container', async () => {
+            // Mock workspace configuration
+            const mockConfig = {
+                get: jest.fn().mockReturnValue('panel')
+            };
+            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfig);
+            
+            // Mock executeCommand to fail on first call (focus) and succeed on subsequent calls
+            (vscode.commands.executeCommand as jest.Mock)
+                .mockRejectedValueOnce(new Error('Focus failed'))
+                .mockResolvedValue(undefined);
+            
+            // Find the showChatWidget command registration
+            const showChatWidgetCall = (vscode.commands.registerCommand as jest.Mock).mock.calls.find(
+                call => call[0] === 'grammarProofreading.showChatWidget'
+            );
+            
+            expect(showChatWidgetCall).toBeDefined();
+            
+            // Execute the command handler
+            const commandHandler = showChatWidgetCall[1];
+            await commandHandler();
+            
+            // Verify it tried to focus first
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('grammarProofreading.chatWidget.focus');
+            
+            // Verify it showed the panel container after focus failed
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.panel.grammarProofreading.panel.focus');
+        });
+
+        test('should show correct view container for each position', async () => {
+            const positions = [
+                { position: 'explorer', command: 'workbench.view.explorer' },
+                { position: 'scm', command: 'workbench.view.scm' },
+                { position: 'debug', command: 'workbench.view.debug' },
+                { position: 'extensions', command: 'workbench.view.extensions' },
+                { position: 'panel', command: 'workbench.panel.grammarProofreading.panel.focus' }
+            ];
+
+            for (const { position, command } of positions) {
+                // Mock workspace configuration for this position
+                const mockConfig = {
+                    get: jest.fn().mockReturnValue(position)
+                };
+                (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfig);
+                
+                // Mock executeCommand to fail on first call (focus) and succeed on subsequent calls
+                (vscode.commands.executeCommand as jest.Mock)
+                    .mockRejectedValueOnce(new Error('Focus failed'))
+                    .mockResolvedValue(undefined);
+                
+                // Find the showChatWidget command registration (should still exist from beforeEach)
+                const showChatWidgetCall = (vscode.commands.registerCommand as jest.Mock).mock.calls.find(
+                    call => call[0] === 'grammarProofreading.showChatWidget'
+                );
+                
+                expect(showChatWidgetCall).toBeDefined();
+                
+                // Execute the command handler
+                const commandHandler = showChatWidgetCall[1];
+                await commandHandler();
+                
+                // Verify it showed the correct view container
+                expect(vscode.commands.executeCommand).toHaveBeenCalledWith(command);
+                
+                // Reset executeCommand mock for next iteration
+                (vscode.commands.executeCommand as jest.Mock).mockClear();
             }
         });
     });
