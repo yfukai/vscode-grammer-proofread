@@ -88,8 +88,7 @@
         {
           "id": "grammarProofreading.panel",
           "title": "Grammar Proofreading",
-          "icon": "$(pencil)",
-          "when": "config.grammarProofreading.chatWidgetPosition == 'panel'"
+          "icon": "$(pencil)"
         }
       ]
     },
