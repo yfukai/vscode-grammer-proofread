@@ -3,7 +3,7 @@
   "displayName": "Grammar Proofreading Extension",
   "description": "AI-powered text correction with custom prompts",
   "version": "0.0.1",
-  "publisher": "your-publisher-name",
+  "publisher": "test-publisher",
   "engines": {
     "vscode": "^1.74.0"
   },
